@@ -1,0 +1,16 @@
+text/html;  w3m -T text/html -I %{charset} -dump %s;    nametemplate=%s.html;   needsterminal;  copiousoutput;
+video/*;    mplayer %s > /dev/null
+audio/*;    mplayer %s > /dev/null
+image/*;    display %s > /dev/null
+#application/octet-stream;   file-roller %s; test=test -n "$DISPLAY"
+application/zip;    unzip -l %s;    copiousoutput
+application/msword; catdoc %s;  copiousoutput
+application/pdf;    mupdf %s;   test=test   -n "$DISPLAY"
+application/x-pdf;  mupdf %s;   test=test   -n "$DISPLAY"
+
+#application/octet-stream;	tar tvf %s;	copiousoutput;
+#application/x-gtar; tar tvf %s; copiousoutput
+#application/x-tar; tar tvf %s; copiousoutput
+#application/x-tar-gz; tar tvfz %s; copiousoutput
+#application/x-rar-compressed; unrar -l %s; copiousoutput
+#application/x-zip-compressed; unzip -l %s; copiousoutput

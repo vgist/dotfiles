@@ -1,0 +1,119 @@
+Emacs.geometry:         120x42+20+10
+Xft.dpi:                96
+Xft.lcdfilter:          lcddefault
+Xft.antialias:          true
+Xft.rgba:               rgba
+Xft.hinting:            true
+Xft.autohint:           true
+Xft.hintstyle:          hintslight
+!! RXVT-unicode setting
+URxvt.geometry:			80x24+80+80
+!URxvt.background:		black
+URxvt.foreground:		gray
+!设置背景色
+URxvt.background:		rgba:0000/0000/0000/cccc
+!设置颜色深度
+URxvt.depth:			32
+URxvt.scrollBar:		False
+URxvt.scrollstyle:		next
+! Use shift+pageup/down to scroll in screen
+!!URxvt.secondaryScroll:	True
+!set the artificial transparency of the v.t.
+!!URxvt.inheritPixmap:	True
+!!URxvt.tintColor:		grey
+!!URxvt.shading:		500
+URxvt.saveLines:		2000
+!!URxvt.borderLess:		False
+!!!URxvt.title:			Havanna's Rxvt-Unicode
+
+!!URxvt.font:xft:DejaVu Sans Mono:pixelsize=10:antialias=False,\xft:WenQuanYi Micro Hei:pixelsize=10:antialias=False
+URxvt.font:xft:DejaVu Sans Mono-10,xft:WenQuanYi Micro Hei-10
+URxvt.boldFont:xft:DejaVu Sans Mono-10:Bold,xft:WenQuanYi Micro Hei-10:Bold
+
+!!Input Method set
+URxvt.inputMethod:		fcitx
+URxvt.preeditType:		Root
+!URxvt.preeditType:		OffTheSpot
+!URxvt.preeditType:		OverTheSpot
+
+
+
+!redefine color to use tango theme in vim
+!Black
+URxvt.color0:			#000000
+URxvt.color8:			#555753
+!Red
+URxvt.color1:			#CC0000
+URxvt.color9:			#EF2929
+!Green
+URxvt.color2:			#4E9A06
+URxvt.color10:			#8AE234
+!Yellow
+URxvt.color3:			#C4A000
+URxvt.color11:			#FCE94F
+!Blue
+URxvt.color4:			#3465A4
+URxvt.color12:			#729FCF
+!Magenta
+URxvt.color5:			#75507B
+URxvt.color13:			#AD7FA8
+!Cyan
+URxvt.color6:			#06989A
+URxvt.color14:			#34E2E2
+!White
+URxvt.color7:			#D3D7CF
+URxvt.color15:			#EEEEEC
+
+
+!!translate.selection
+!URxvt.perl-lib:			/home/havanna/translate.selection
+!URxvt.perl-ext-common:		translate-selection
+
+
+
+!URxvt.perl-ext-common:default,tabbed
+
+
+
+
+
+XTerm*locale: true
+xterm*faceName: WenQuanYi Micro Hei Mono:size=9
+xterm*faceNameDoublesize: WenQuanYi Micro Hei Mono:size=9
+
+XTerm*color0: black
+XTerm*color1: red3
+XTerm*color2: green3
+XTerm*color3: yellow3
+XTerm*color4: DodgerBlue1
+XTerm*color5: magenta3
+XTerm*color6: cyan3
+XTerm*color7: gray90
+XTerm*color8: gray50
+XTerm*color9: red
+XTerm*color10: green
+XTerm*color11: yellow
+XTerm*color12: blue
+XTerm*color13: magenta
+XTerm*color14: cyan
+XTerm*color15: white
+XTerm*colorUL: yellow
+XTerm*colorBD: white
+
+xterm*background:    black
+xterm*foreground:    Grey
+
+!fix alt key input
+xterm*eightBitInput: false
+xterm*altSendsEscape: true
+
+!look and feel
+xterm.termName: xterm-256color
+xterm.geometry: 80x24
+xterm*scrollBar: false
+xterm*rightScrollBar: true
+xterm*loginshell: true
+xterm*cursorBlink: true
+xterm.borderLess: true
+xterm.cursorBlink: true
+xterm*cjkWidth:false

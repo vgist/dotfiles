@@ -1,0 +1,134 @@
+#Color / Canvas patch
+#done_fg_color=6
+#done_bg_color=2
+#active_fg_color=2
+#active_bg_color=4
+
+set_max_open_http = 8
+
+#最小和最大允许peer数
+min_peers = 30
+max_peers = 200
+
+# Same as above but for seeding completed torrents (-1 = same as downloading)
+min_peers_seed = 3
+max_peers_seed = 20
+
+#最大同时上传用户数
+max_uploads = 4
+
+#最大下载和上传速度，adsl请酌情修改
+download_rate = 420
+upload_rate = 50
+
+#下载目录
+directory = "/mnt/Media/Downloads/Temp"
+#下载历史目录（此目录中包括下载进度信息和DHT节点缓存）
+session = "/mnt/Media/Downloads/.session"
+
+#配置自动监视,把bt种子扔进（拿走）～/Download目录就自动下载（停止）
+schedule = watch_directory,10,10,load_start="/mnt/Media/Downloads/watch/*.torrent"
+#schedule =watch_directory,10,10,"load_start_verbose=~/Downloads/watch/*.torrent,d.set_custom1=~/Downloads,\"branch={d.is_private=,,{d.set_custom2=BT,view.set_visible=RatioBT}}\""
+schedule = tied_directory,10,10,start_tied=
+schedule = untied_directory,10,10,stop_untied=
+
+#硬盘空间低于100M就自动停止一切下载）
+schedule = low_diskspace,5,60,close_low_diskspace=100M
+
+#在总上传量达到2000M的情况下上传/下载率达到150%,或者在总上传量不足2000M情况下上传/下载率达到1500%,则停止上传
+ratio.enable=1
+ratio.min.set=150
+ratio.max.set=1500
+ratio.upload.set=2000M
+#system.method.set=group.seeding.ratio.command,d.close=,d.stop=,d.set_ignore_commands=1
+
+#group.insert_persistent_view = RatioBT
+#group.RatioBT.ratio.enable=
+#group.RatioBT.ratio.min.set=1
+#group.RatioBT.ratio.max.set=2
+#group.RatioBT.ratio.upload.set=10M
+#system.method.set=group.RatioBT.ratio.command,d.close=,d.stop=,d.set_ignore_commands=1
+
+# The ip address reported to the tracker.
+#ip = 127.0.0.1
+#ip = rakshasa.no
+
+# The ip address the listening socket and outgoing connections is bound to.
+#bind = 127.0.0.1
+#bind = rakshasa.no
+
+#bt监听端口
+port_range = 17898-17899
+#随机从上面范围内选择端口
+port_random = yes
+
+# Check hash for finished torrents. Might be usefull until the bug is fixed that causes lack of diskspace not to be properly reported.
+#check_hash = no
+
+# Set whetever the client should try to connect to UDP trackers.
+use_udp_trackers = yes
+
+# Alternative calls to bind and ip that should handle dynamic ip's.
+#schedule = ip_tick,0,1800,ip=rakshasa
+#schedule = bind_tick,0,1800,bind=rakshasa
+
+# Encryption options, set to none (default) or any combination of the following:
+# allow_incoming, try_outgoing, require, require_RC4, enable_retry, prefer_plaintext
+#
+# The example value allows incoming encrypted connections, starts unencrypted
+# outgoing connections but retries with encryption if they fail, preferring
+# plaintext to RC4 encryption after the encrypted handshake
+#
+encryption = allow_incoming,enable_retry,prefer_plaintext
+#encryption = allow_incoming,require,prefer_plaintext
+#encryption = allow_incoming,try_outgoing,require_RC4 prefer_plaintext
+
+#开启DHT
+# Enable DHT support for trackerless torrents or when all trackers are down.
+# May be set to "disable" (completely disable DHT), "off" (do not start DHT),
+# "auto" (start and stop DHT as needed), or "on" (start DHT immediately).
+# The default is "off". For DHT to work, a session directory must be defined.
+dht = auto
+
+#DHT所用的UDP端口
+dht_port = 17900
+
+#种子交换功能
+peer_exchange = yes
+
+#（上传缓存,每个种子10M,小内存用户请酌情修改）
+#send_buffer_size = 20M
+
+#（下载缓存,每个种子20M,小内存用户请酌情修改）
+#receive_buffer_size = 40M
+
+#(修改编码以避免中文乱码）
+encoding_list=UTF-8
+
+#rtorrent创建的文件夹(或文件)的权限，默认是0644，建议改成0000(感谢xuanwuhu)，使所有用户都能访问。
+#umask = 0644
+
+#最后这个参数和web配置以及远程管理有关，稍后再介绍
+#scgi_port = :5000
+
+# Hash read-ahead controls how many MB to request the kernel to read
+# ahead. If the value is too low the disk may not be fully utilized,
+# while if too high the kernel might not be able to keep the read
+# pages in memory thus end up trashing.
+#hash_read_ahead = 10
+
+# Interval between attempts to check the hash, in milliseconds.
+#hash_interval = 100
+
+# Number of attempts to check the hash while using the mincore status,
+# before forcing. Overworked systems might need lower values to get a
+# decent hash checking rate.
+#hash_max_tries = 10
+
+#完成后移动目录同时删除watch目录下相应种子文件，同时开启超级种子
+#method.set_key = event.download.finished,move_complete,"execute=mv,-u,$d.get_base_path=,/mnt/Media/Video/ ;d.set_directory=/mnt/Media/Video/"
+#method.set_key = event.download.finished,remove_tied,"d.delete_tied="
+
+
+#method.set_key = event.download.start,"d.set_connection_seed=initial_seed"
+#method.set_key = event.download.finished,"d.set_connection_seed=initial_seed"
