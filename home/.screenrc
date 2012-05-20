@@ -1,0 +1,66 @@
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+
+##    Explanation of hardstatus line    ##
+
+# Ignore the ' marks if you use these examples for yourself
+
+# Note that if you want to use the color brown under konsole
+# You actually use bright yellow (%{Y}).
+
+# Note the embeded space after the colon, I feel
+#  it just looks nicer with a blank between the
+#  text and console edge:
+#   '%{=b}%{G} Screens: '
+
+# This prints the window listing in blue:
+#   '%{b}%w'
+
+# This right-aligns what follows:
+#   '%='
+
+# This displays the time (hours and minutes) in 12hr format
+# and adds an AM/PM flag, in bold green:
+#   '%{G}%C%A'
+
+# This displays the day of the week:
+#   '%D'
+
+#This displays the date in Mon/day/year format:
+# and again I embeded a space to give me one space
+# between the text and console edge:
+#  '%M/%d/%Y '
+
+# The resultsing command give you a status line that
+#  looks like this:
+#   | Screens: 0* bash  <blanks zapped>         5:30PM  Fri, Jun/25/2004 |
+#  (The pipes indicate the edges of the xterm/console).
+
+# Green text, time, and date; windows in blue:
+#hardstatus alwayslastline "%{=b}%{G} Screen(s): %{b}%w %=%{kG}%C%A  %D, %M/%d/%Y "
+
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+
+#C-a ?	 显示所有键绑定信息
+#C-a w	 显示所有窗口列表
+#C-a C-a 切换到之前显示的窗口
+#C-a c	 创建一个新的运行shell的窗口并切换到该窗口
+#C-a n	 切换到下一个窗口
+#C-a p	 切换到前一个窗口(与C-a n相对)
+#C-a 0..9 切换到窗口0..9
+#C-a a	 发送 C-a到当前窗口
+#C-a d	 暂时断开screen会话
+#C-a k	 杀掉当前窗口
+#C-a [	 进入拷贝/回滚模式
+
+hardstatus on
+hardstatus alwayslastline
+#hardstatus string "%{= R}[%{w}%=%?%-Lw%?%{R}%n*%f%t%?(%u)%? %{w}%?%+Lw%?%?%=%{R}][%{w}%m/%d %{W}%C%A%{R}]"
+hardstatus string "%{= G}%-Lw%{= .Y}%50> %n*%f %t%{= G}%+Lw%< %{= G}%-=%D %c:%s %m/%d/%Y"
+startup_message off
+vbell off
+autodetach on
+msgwait 1
+shell bash
+termcapinfo xterm|xterms|xs|rxvt|urxvt|tila ti@:te@
+bindkey -k F1 prev
+bindkey -k F2 next

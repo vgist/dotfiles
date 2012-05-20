@@ -1,0 +1,46 @@
+# Files and directories
+music_directory		"/mnt/Media/Music/flac"
+playlist_directory	"/home/danny/.mpd/playlists"
+db_file			"/home/danny/.mpd/mpd.db"
+log_file		"/home/danny/.mpd/mpd.log"
+#error_file		"/home/danny/.mpd/mpd.error"
+pid_file		"/home/danny/.mpd/mpd.pid"
+state_file		"/home/danny/.mpd/mpd.state"
+# General music daemon options
+user			"danny"
+#group			"nogroup"
+group			"danny"
+bind_to_address		"localhost"
+bind_to_address		"/home/danny/.mpd/mpd.socket"
+port			"6600"
+auto_update		"no"
+metadata_to_use        "artist,title,name"
+# Input
+#input {
+#	plugin "curl"
+#	proxy "proxy.isp.com:8080"
+#	proxy_user "user"
+#	proxy_password "password"
+#}
+# Audio Output
+audio_output {
+	type		"alsa"
+	name		"My ALSA Device"
+#	driver		"oss"
+	auto_resample	"no"
+#	device		"hw:0,0"
+#	device		"/dev/oss/oss_hdaudio0/pcm0"
+#	format		"44100:16:2"
+#	mixer_device	"default"
+#	mixer_device	"/dev/oss/oss_hdaudio0/mix0"
+#	mixer_device	"/dev/dsp"
+	mixer_control	"Master"
+#	mixer_control	"Pcm"
+#	mixer_index	"0"
+}
+audio_output_format	"44100:16:2"
+audio_buffer_size	"10280"
+buffer_before_play	"20%"
+# Character Encoding
+filesystem_charset	"UTF-8"
+#id3v1_encoding		"GB2312"

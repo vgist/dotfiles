@@ -1,0 +1,59 @@
+!look and feel
+xterm.termName: xterm
+xterm*geometry: 80x24
+xterm*scrollBar: false
+xterm*rightScrollBar: true
+xterm*loginshell: true
+xterm*cursorBlink: true
+xterm.borderLess: true
+xterm.cursorBlink: true
+
+!fix alt key input
+xterm*eightBitInput: false
+xterm*altSendsEscape: true
+
+!mouse selecting to copy, ctrl-v to paste
+!Ctrl p to print screen content to file
+!XTerm*VT100.Translations: #override \
+!    Ctrl <KeyPress> V: insert-selection(CLIPBOARD,PRIMARY,CUT_BUFFER0) \n\
+!    <BtnUp>: select-end(CLIPBOARD,PRIMARY,CUT_BUFFER0) \n\
+!    Ctrl <KeyPress> P: print() \n
+
+
+!font and locale
+xterm*locale: true
+xterm.utf8:     true
+xterm*utf8Title: true
+xterm*fontMenu*fontdefault*Label: Default
+xterm*faceName:Sans Mono:antialias=True:pixelsize=13
+xterm*faceNameDoublesize:WenQuanYi Micro Hei:antialias=True:pixelsize=13
+xterm*xftAntialias: true
+xterm*cjkWidth:false
+
+xterm*background:  black
+xterm*foreground:  gray
+XTerm*color0: black
+XTerm*color1: red3
+XTerm*color2: green3
+XTerm*color3: yellow3
+XTerm*color4: DodgerBlue1
+XTerm*color5: magenta3
+XTerm*color6: cyan3
+XTerm*color7: gray90
+XTerm*color8: gray50
+XTerm*color9: red
+XTerm*color10: green
+XTerm*color11: yellow
+XTerm*color12: blue
+XTerm*color13: magenta
+XTerm*color14: cyan
+XTerm*color15: white
+XTerm*colorUL: yellow
+XTerm*colorBD: white
+
+Xft.dpi:96
+Xft.antialias: true
+Xft.hinting: true
+Xft.hintstyle: hintfull
+Xft.lcdfilter: lcddefault
+Xft.rgba: rgb
