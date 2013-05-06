@@ -1,10 +1,6 @@
 background no
 override_utf8_locale yes
-#font WenQuanYi Micro Hei:size=8
-#xftfont WenQuanYi Micro Hei:size=8
-#font DejaVu Sans:size=8
 font Sans:size=9
-#xftfont DejaVu Sans:size=8
 xftfont Sans:size=9
 use_xft yes
 xftalpha 0.6
@@ -12,7 +8,6 @@ xftalpha 0.6
 update_interval 1.0
 total_run_times 0
 own_window yes
-#own_window_type desktop normal dock panel override
 own_window_type override
 own_window_transparent yes
 own_window_hints undecorated,below,sticky,skip_taskbar,skip_pager
@@ -20,34 +15,34 @@ double_buffer yes
 draw_shades no
 draw_outline no
 draw_borders no
-draw_graph_borders no
-#minimum_size 200 5
-#maximum_width 250
+draw_graph_borders yes
 
-#alignment top_left top_right bottom_left bottom_right none
 alignment bottom_left
 gap_x 5
-gap_y 15
+gap_y 0
 no_buffers yes
 cpu_avg_samples 2
-uppercase no # set to yes if you want all text to be in uppercase
+uppercase no
 use_spacer none
 out_to_console no
-
+out_to_stderr no
+out_to_stderr no
 
 default_color lightgrey
-#default_color moccasin
 default_shade_color black
 default_outline_color grey70
 
-
+mpd_host 127.0.0.1
 
 TEXT
+${if_mpd_playing} [ ${mpd_status} - ${mpd_elapsed}/${mpd_length} ] ${scroll 50 5 ${mpd_smart}} | ${endif} \
 ${execi 600 curl -s --connect-timeout 30 "http://wap.weather.com.cn/data/sk/101020100.html" >/tmp/current }${execi 6000 curl -s --connect-timeout 30 "http://m.weather.com.cn/data/101020100.html" >/tmp/forcast } \
 ${color slate grey}${font LiHei Pro:size=9}上海: ${color}${execi 600 sed  's/^.*"img_title_single":"//' /tmp/forcast | sed 's/",".*$//' } ${execi 600 sed  's/^.*"temp":"//' /tmp/current | sed 's/",".*$//' }℃ ${execi 600 sed  's/^.*"WD":"//' /tmp/current | sed 's/",".*$//' }, ${execi 600 sed  's/^.*"time":"//' /tmp/current | sed 's/",".*$//' } \
 ${color slate grey} ${font LiHei Pro:size=9}今日: ${color}${execi 600 sed  's/^.*"weather1":"//' /tmp/forcast | sed 's/",".*$//' } ${execi 600 sed  's/^.*"temp1":"//' /tmp/forcast | sed 's/",".*$//' }${color slate grey} ${font LiHei Pro:size=9} \
 ${font LiHei Pro:size=9}明日: ${color}${execi 600 sed  's/^.*"weather2":"//' /tmp/forcast | sed 's/",".*$//' } ${execi 600 sed  's/^.*"temp2":"//' /tmp/forcast | sed 's/",".*$//' }${color slate grey}${font LiHei Pro:size=9} \
 ${font LiHei Pro:size=9}后日: ${color}${execi 600 sed  's/^.*"weather3":"//' /tmp/forcast | sed 's/",".*$//' } ${execi 600 sed  's/^.*"temp3":"//' /tmp/forcast | sed 's/",".*$//' }${color slate grey}${font LiHei Pro:size=9} | \
+${color slate grey}Kernel: ${color}$kernel | \
 ${color slate grey}${font}Processes: $processes($running_processes) | \
-IO Read: $diskio_read/s | \
-IO Write: $diskio_write/s
+IO Read: $diskio_read | \
+IO Write: $diskio_write | \
+NET Down: ${color}${downspeed enp3s0}${color slate grey}/ ${totaldown enp3s0} | NET Up ${color}${upspeed enp3s0}${color slate grey}/ ${totalup enp3s0}

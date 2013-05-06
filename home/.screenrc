@@ -61,6 +61,8 @@ vbell off
 autodetach on
 msgwait 1
 shell bash
+#term xterm
 termcapinfo xterm|xterms|xs|rxvt|urxvt|tila ti@:te@
+defbce "on"
 bindkey -k F1 prev
 bindkey -k F2 next
