@@ -1,0 +1,9 @@
+# global
+!.gitkeep
+.DS_Store
+*~
+
+# Windows
+Thumbs.db
+ehtuumbs.db
+Desktop.ini
