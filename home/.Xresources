@@ -1,46 +1,29 @@
-!xterm -xrm "xterm*background: blue" = xterm -bg blue
+! xterm setting
+xterm*termName:             xterm-256color
+xterm*geometry:             110x30
+xterm*scrollBar:            false
+xterm*loginshell:           true
+xterm.cursorBlink:          true
+xterm*borderLess:           true
+xterm*cursorBlink:          true
+xterm*borderWidth:          0
 
-!look and feel
-xterm*termName: xterm
-xterm*geometry: 116x30
-xterm*scrollBar: false
-!xterm*rightScrollBar: true
-xterm*loginshell: true
-xterm.cursorBlink: true
-xterm*borderLess: true
-xterm*cursorBlink: true
-xterm*borderWidth: 0
+xterm*saveLines:            4096
+xterm*eightBitInput:        false
+xterm*altSendsEscape:       true
+xterm*metaSendsEscape:      true
 
-!Scrolling
-xterm*saveLines: 4096
-!fix alt key input
-xterm*eightBitInput: false
-xterm*altSendsEscape: true
-xterm*metaSendsEscape: true
+XTerm*renderFont:           true
+xterm*locale:               true
+xterm*utf8:                 true
+xterm*utf8Title:            true
+XTerm*faceName:             DejaVu Sans Mono:antialias=true
+XTerm*faceNameDoublesize:   Source Han Sans CN:antialias=false
+xterm*faceSize:             10
+XTerm*cjkWidth:             false
 
-!mouse selecting to copy, ctrl-v to paste
-!Ctrl p to print screen content to file
-!XTerm*VT100.Translations: #override \
-!    Ctrl <KeyPress> V: insert-selection(CLIPBOARD,PRIMARY,CUT_BUFFER0) \n\
-!    <BtnUp>: select-end(CLIPBOARD,PRIMARY,CUT_BUFFER0) \n\
-XTerm*translations: #override <Btn1Up>: select-end(PRIMARY, CLIPBOARD, CUT_BUFFER0)
+#include                    ".Xresources.d/monokai"
+!#include                   ".Xresources.d/solarized"
 
-XTerm*renderFont: true
-!font and locale
-xterm*locale: UTF-8
-xterm*utf8:     true
-xterm*utf8Title: true
-!xterm*fontMenu*fontdefault*Label: Default
-XTerm*faceName: DejaVu Sans Mono:antialias=true:pixelsize=13
-XTerm*faceNameDoublesize: WenQuanYi Micro Hei:antialias=false:pixelsize=13
-!xterm*faceSize: 10
-!xterm*xftAntialias: true
-XTerm*cjkWidth:false
-
-!xterm*VT100.font: 9x15
-!xterm*VT100.utf8Fonts.font: -misc-fixed-medium-r-normal--18-120-100-100-c-90-iso10646-1
-!xterm*VT100.utf8Fonts.widefont: -misc-fixed-medium-r-normal--18-120-100-100-c-180-iso10646-1
-
-#include ".Xresources.d/monokai"
-
-Emacs.geometry:         120x42+20+10
+! emacs gui
+Emacs.geometry:             120x42+20+10
