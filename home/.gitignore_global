@@ -1,9 +1,12 @@
 # global
 !.gitkeep
 .DS_Store
+.Spotlight-v100
+*.pyc
 *~
 
 # Windows
 Thumbs.db
 ehtuumbs.db
 Desktop.ini
+.Trashes
