@@ -1,0 +1,31 @@
+#
+# ~/.bash_alias
+#
+
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias less='less -R'
+alias ssh='ssh -C'
+alias sudo='sudo '
+hash httping 2>/dev/null && alias httping='httping -S -K -Y -s -Z -X'
+hash dig 2>/dev/null && alias dig='dig +nostats +nocomments +nocmd'
+hash netstat 2>/dev/null && alias netstat='netstat -an'
+alias webpaste='curl -F "c=@-" "https://fars.ee/"'
+
+case `uname` in
+    Darwin)
+        alias ls='ls -G'
+        alias ll='ls -lT'
+        alias history='history -i'
+        hash traceroute 2>/dev/null && alias traceroute='traceroute -aI -q1'
+        ;;
+    Linux)
+        alias ll='ls -lh --time-style=long-iso'
+        alias ls='ls --color=auto --group-directories-first'
+        alias ip='ip -h -c -s'
+        hash traceroute 2>/dev/null && alias traceroute='traceroute -AI -q1'
+        hash tracepath 2>/dev/null && alias tracepath='tracepath -nb'
+        hash route 2>/dev/null && alias route='route -n'
+        #alias ip='ip -h -c -f inet -f link -4 -6 -s'
+        ;;
+esac
