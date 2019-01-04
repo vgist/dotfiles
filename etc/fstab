@@ -1,0 +1,2 @@
+UUID=your-uuid	/boot	vfat	noauto,noatime,discard	0 2
+UUID=your-uuid	/	ext4	defaults,noatime,discard	1 1

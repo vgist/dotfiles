@@ -1,0 +1,8 @@
+#
+# /etc/hosts.allow
+#
+
+sshd: ALL
+vsftpd: ALL
+mpd: ALL
+# End of file
