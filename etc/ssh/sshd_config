@@ -19,6 +19,8 @@ PubkeyAuthentication yes
 ChallengeResponseAuthentication no
 UsePrivilegeSeparation sandbox
 ClientAliveInterval 60
+#PrintMotd no
+#PrintLastLog no
 Port your-port
 Match User user-name
     X11Forwarding no

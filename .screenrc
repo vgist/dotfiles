@@ -1,0 +1,43 @@
+#C-a ?              Displays commands and their defaults
+#C-a w              Display a non-interactive list of windows at the bottom of screen
+#C-a C-a            Toggle between current and previous region
+#C-a c              Create a new window (with shell)
+#C-a n|Space        Switch to the next window.
+#C-a p|Backspace    Switch to the previous window.
+#C-a 0              Switch to window 0 (similar for 1-9).
+#C-a a              Sends Ctrl+a to the current window
+#C-a d              Detach from the current screen session, and leave it running.
+#C-a Q              Close all regions but the current one
+#C-a X              Close the current region
+#C-a |              Split current region vertically into two regions
+#Read more from manpage
+
+# the following two lines give a two-line status, with the current window highlighted
+hardstatus alwayslastline
+hardstatus string "%{= G}%-Lw%{+b .Y}%50>[ %n*%f %t ]%{= G}%+Lw%< %{= G}%-=[ %c:%s %D, %m/%d/%Y ]"
+
+# restore the original content when exiting screen
+altscreen on
+
+# no welcome message
+startup_message off
+
+# visual bell off
+vbell off
+
+# 256 colors
+attrcolor b ".I"    # Allow bold colors - necessary for some reason
+terminfo xterm*|rxvt|urxvt ti@:te@
+#termcapinfo xterm*|rxvt|urxvt ti@:te@
+termcapinfo xterm 'Co#256:AB=\E[48;5;%dm:AF=\E[38;5;%dm'
+defbce on
+
+# mouse tracking allows to switch region focus by clicking
+mousetrack on       # Don't work on MacOS
+
+#cjkwidth on
+
+# a login-shell
+defshell -$SHELL
+
+term screen-256color

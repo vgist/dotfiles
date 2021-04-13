@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Icon=/usr/share/ibus-rime/icons/rime.png
+Name=ibus-rime
+Exec=ibus-daemon -rdx
+StartupNotify=false
+Terminal=false

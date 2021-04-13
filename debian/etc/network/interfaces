@@ -1,0 +1,17 @@
+# interfaces(5) file used by ifup(8) and ifdown(8)
+# Include files from /etc/network/interfaces.d:
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+# auto eth0
+allow-hotplug eth0
+iface eth0 inet dhcp
+
+# allow-hotplug wlan0
+# iface wlan0 inet dhcp
+# wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+## generate wpa_supplicant configuration:
+## wpa_passphrase your-ssid your-password >> \
+##        /etc/wpa_supplicant/wpa_supplicant.conf
