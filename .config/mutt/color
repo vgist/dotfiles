@@ -1,0 +1,21 @@
+################################
+# Colors
+################################
+color header     brightwhite  default  "^(From|Subject):"
+color attachment magenta      default
+color error      brightred    default
+color hdrdefault cyan         default
+color index      yellow       default  ~p
+color index      blue         default  ~P
+color index      brightyellow default  ~N
+color index      brightgreen  default  "~N ~p"
+color indicator  brightyellow green
+color markers    brightcyan   default
+color message    brightcyan   default
+color normal     default      default
+color quoted     green        default
+color search     yellow       green
+color signature  cyan         default
+color status     brightcyan   blue
+color tilde      magenta      default
+color tree       magenta      default

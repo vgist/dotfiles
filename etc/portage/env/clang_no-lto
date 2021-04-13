@@ -1,0 +1,14 @@
+# 1. bootstrap clang toolchain with gcc
+#CC="clang"
+#CXX="clang++"
+#LDFLAGS="-fuse-ld=lld -rtlib=compiler-rt -unwindlib=libunwind"
+
+# 2. repeat building with LTO llvm instead of gcc
+CC="clang"
+CXX="clang++"
+CFLAGS="${CFLAGS}"
+CXXFLAGS="${CXXFLAGS}"
+LDFLAGS="-Wl,-O2 -Wl,--as-needed"
+AR="llvm-ar"
+NM="llvm-nm"
+RANLIB="llvm-ranlib"

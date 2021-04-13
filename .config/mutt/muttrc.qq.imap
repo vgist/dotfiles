@@ -1,0 +1,61 @@
+# rc file for mutt
+
+# account
+set from = 'username@qq.com'
+set realname = 'username'
+
+set imap_user = 'username@qq.com'
+set imap_pass = 'password'
+set imap_keepalive = '300'
+set imap_passive = no
+set imap_check_subscribed
+
+set smtp_url = 'smtps://username@qq.com@smtp.exmail.qq.com:465'
+set smtp_pass = 'password'
+set ssl_force_tls = yes
+
+set folder = 'imaps://imap.exmail.qq.com:993'
+mailboxes = '+INBOX'
+set spoolfile = '+INBOX'
+set postponed = '+Drafts'
+#set record = '+Sent'
+unset record
+
+set mail_check = '120'
+
+
+# bind map key function
+bind pager <Up> previous-line
+bind pager <Down> next-line
+bind pager , half-up
+bind pager . half-down
+#bind editor <space> noop
+
+
+# subscribe & lists
+#subscribe list@mail.com
+#lists list@mail.com
+
+
+# macro
+macro index,pager \cl "<change-folder>?" "Go to Label"
+#macro pager \cb |urlview\n
+#macro pager \cb <pipe-entry>'urlview'<enter> 'Follow links with urlview'
+macro pager \cb <pipe-entry>'w3m'<enter> 'Follow links in w3m'
+
+
+# What to show and order of headers
+ignore *
+unignore Date: Subject: From: To: Reply-To: Cc: \
+    Mail-Followup-To: User-Agent: X-Mailer: X-Operating-System: Message-ID:
+hdr_order Date: Subject: From: To: Reply-To: Cc: \
+    Mail-Followup-To: User-Agent: X-Mailer: X-Operating-System: Message-ID:
+
+
+# source file
+source ~/.config/mutt/other
+source ~/.config/mutt/folder
+source ~/.config/mutt/gpg.rc
+source ~/.config/mutt/color
+source ~/.config/mutt/auto-view
+

@@ -1,0 +1,11 @@
+# folder path
+set mailcap_path = '~/.config/mutt/mailcap'
+set signature = '~/.config/mutt/signature'
+set certificate_file = '~/.config/mutt/cert'
+set alias_file = '~/.config/mutt/aliases'
+source $alias_file
+
+set tmpdir = '~/.mutt/tmp'
+set message_cachedir = '~/.mutt/cache/bodies'
+set history_file = '~/.mutt/cache/history'
+set header_cache = '~/.mutt/cache/headers'

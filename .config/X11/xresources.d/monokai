@@ -1,0 +1,22 @@
+! Monokai theme
+
+xterm*background:   #262626
+xterm*foreground:   #F8F8F2
+xterm*highlight:    #66D9EF
+xterm*cursorColor:  #F8F8F2
+xterm*color0:       #666666
+xterm*color1:       #F92672
+xterm*color2:       #A6E22E
+xterm*color3:       #F4BF75
+xterm*color4:       #66D9EF
+xterm*color5:       #AE81FF
+xterm*color6:       #2AA198
+xterm*color7:       #F9F9F5
+xterm*color8:       #272822
+xterm*color9:       #F92672
+xterm*color10:      #A6E22E
+xterm*color11:      #F4BF75
+xterm*color12:      #66D9EF
+xterm*color13:      #AE81FF
+xterm*color14:      #2AA198
+xterm*color15:      #F9F8F5

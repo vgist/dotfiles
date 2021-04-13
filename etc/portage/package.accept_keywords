@@ -1,0 +1,9 @@
+#mail-client/thunderbird -~amd64
+#www-client/firefox -~amd64
+app-admin/bitwarden-desktop-bin ~amd64
+app-admin/enpass ~amd64
+app-emulation/virtio-win ~amd64
+app-i18n/ibus-rime ~amd64
+net-im/tencent-qq ~amd64
+sys-firmware/broadcom-bt-firmware ~amd64
+sys-firmware/iwl6005-ucode ~amd64

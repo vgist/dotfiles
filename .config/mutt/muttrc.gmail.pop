@@ -1,0 +1,64 @@
+# rc file for mutt
+
+# account
+set from = 'username@gmail.com'
+set realname = 'NickName'
+
+set pop_delete = no
+set pop_host = 'pops://pop.gmail.com:995'
+set pop_user = 'username@gmail.com'
+set pop_pass = 'password'
+set pop_reconnect = no
+set send_charset = 'us-ascii:iso-8859-1:utf-8'
+
+set smtp_url = 'smtps://username@gmail.com@smtp.gmail.com:587/'
+set smtp_pass = 'password'
+set ssl_force_tls = yes
+
+set folder = '~/.mutt/mail'
+#mailboxes '~/.mutt/Mail'
+set mbox_type = 'maildir'
+set mbox = '+mbox'
+set spoolfile = '+inbox'
+set postponed = '+postponed'
+set record = '+sent'
+
+
+# bind map key function
+bind pager <Up> previous-line
+bind pager <Down> next-line
+bind pager , half-up
+bind pager . half-down
+#bind editor <space> noop
+
+
+# subscribe & lists
+#subscribe list@mail.com
+#lists list@mail.com
+
+
+# macro
+#macro index gi "<change-folder>=INBOX<enter>" "Go to inbox"
+#macro index ga "<change-folder>=[Gmail]/All Mail<enter>" "Go to all mail"
+#macro index gs "<change-folder>=[Gmail]/Sent Mail<enter>" "Go to Sent Mail"
+#macro index gd "<change-folder>=[Gmail]/Drafts<enter>" "Go to drafts"
+#macro index gt "<change-folder>=[Gmail]/Trash<enter>" "Go to drafts"
+#macro pager \cb |urlview\n
+#macro pager \cb <pipe-entry>'urlview'<enter> 'Follow links with urlview'
+macro pager \cb <pipe-entry>'w3m'<enter> 'Follow links in w3m'
+
+
+# What to show and order of headers
+ignore *
+unignore Date: Subject: From: To: Reply-To: Cc: \
+    Mail-Followup-To: User-Agent: X-Mailer: X-Operating-System: Message-ID:
+hdr_order Date: Subject: From: To: Reply-To: Cc: \
+    Mail-Followup-To: User-Agent: X-Mailer: X-Operating-System: Message-ID:
+
+
+# source file
+source ~/.config/mutt/other
+source ~/.config/mutt/folder
+source ~/.config/mutt/gpg.rc
+source ~/.config/mutt/color
+source ~/.config/mutt/auto-view

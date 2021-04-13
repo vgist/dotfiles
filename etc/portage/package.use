@@ -1,0 +1,34 @@
+app-admin/conky curl imlib iostats mpd thinkpad wifi
+app-crypt/gnupg user-socket
+app-editors/emacs xft
+app-emulation/docker overlay
+app-emulation/qemu io-uring usbredir QEMU_SOFTMMU_TARGETS: x86_64 QEMU_USER_TARGETS: aarch64 i386 x86_64
+app-portage/eix sqlite
+app-text/poppler cjk
+dev-db/sqlite secure-delete
+dev-lang/spidermonkey lto pgo
+dev-libs/libgdata vala
+dev-util/sccache dist-client dist-server
+gnome-base/gnome-extra-apps -share -shotwell
+gnome-base/gvfs afp archive cdda fuse gphoto2 ios mtp udisks
+gnome-base/nautilus sendto
+mail-client/mutt gnutls gpgme pop
+mail-client/thunderbird lto pgo
+media-fonts/source-han-sans L10N: ja ko zh-CN zh-TW
+media-libs/libsdl2 haptic
+media-libs/libvpx postproc
+media-libs/mesa osmesa
+media-sound/mpd libmpdclient
+media-video/mpv libmpv
+net-analyzer/mtr -gtk
+net-fs/samba winbind
+net-firewall/nftables json python
+net-misc/curl http2
+net-misc/rdesktop xrandr
+net-misc/spice-gtk usbredir
+sys-apps/portage test
+sys-apps/systemd cgroup-hybrid
+sys-devel/clang default-compiler-rt default-libcxx default-lld llvm-libunwind
+sys-libs/zlib minizip
+www-client/firefox lto pgo
+x11-base/xorg-server kdrive glamor xvfb xephyr

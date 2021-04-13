@@ -1,0 +1,35 @@
+! xterm setting
+XTerm*termName:             xterm-256color
+XTerm*geometry:             116x26+1000+620
+XTerm*scrollBar:            false
+XTerm*loginshell:           true
+XTerm*borderLess:           true
+XTerm*cursorBlink:          true
+XTerm*cursorUnderLine:      true
+XTerm*alwaysHighlight:      true
+!XTerm*cursorOffTime:        300
+!XTerm*cursorOnTime:         600
+XTerm*borderWidth:          0
+
+XTerm*saveLines:            4096
+XTerm*eightBitInput:        false
+XTerm*altSendsEscape:       true
+XTerm*metaSendsEscape:      true
+Xterm*selectToClipboard:    true
+
+XTerm*renderFont:           true
+XTerm*locale:               true
+XTerm*utf8:                 true
+XTerm*utf8Title:            true
+! need truetype support
+XTerm*faceName:             monospace
+!XTerm*faceName:             DejaVu Sans Mono
+!XTerm*faceNameDoublesize:   Source Han Sans CN
+XTerm*faceSize:             10
+XTerm*cjkWidth:             false
+
+! copy paste shortcut key
+XTerm.vt100.translations: #override \n\
+    <Btn1Up>: select-end(PRIMARY, CLIPBOARD, CUT_BUFFER0) \n\
+    Ctrl Shift <Key>C: copy-selection(CLIPBOARD) \n\
+    Ctrl <Key>V: insert-selection(CLIPBOARD)

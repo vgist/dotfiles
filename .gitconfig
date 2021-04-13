@@ -1,0 +1,54 @@
+[core]
+	legacyheaders = false
+	quotepath = false
+	pager = less -+$LESS -FRX
+	autocrlf = false #true false input
+	safecrlf = true # true false warn
+	excludesfile = ~/.gitignore_global
+	attributesfile = ~/.gitattributes
+	whitespace = space-before-tab,-indent-with-non-tab,trailing-space
+	editor = vim
+[user]
+	name = nil
+	email = your@email.com
+	signingkey = public gpg key
+[diff]
+	tool = diff
+[alias]
+	tags = tag -l
+	branches = branch -a
+	remotes = remote -v
+	aliases = config --get-regexp alias
+	ll= log --graph --pretty=tformat:'%C(yellow)%h%Creset -%C(cyan)%d%Creset %s %C(dim green italic)(%cr, %an, %G?)' --abbrev-commit
+	l = log --stat --decorate --abbrev-commit --pretty=fuller --max-count=20
+	sp = submodule update --recursive --init
+	sf = submodule foreach git submodule update --recursive --init
+[color]
+	ui = auto
+[commit]
+	gpgsign = true
+[github]
+	user = user
+[gist]
+	private = no
+	browse = no
+[push]
+	default = simple
+	followTags = true
+[pull]
+	default = simple
+	rebase = false
+[credential]
+	helper = osxkeychain
+[web]
+	browser = firefox
+#[https]
+#	proxy = socks5://127.0.0.1:1080
+#[http]
+#	proxy = socks5://127.0.0.1:1080
+#	postBuffer = 524288000
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
