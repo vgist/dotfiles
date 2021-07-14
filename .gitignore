@@ -1,0 +1,9 @@
+.swap/*
+plugged/*
+autoload/*
+
+# Mac
+.DS_Store
+.Spotlight-v100
+*.pyc
+*~
