@@ -43,7 +43,7 @@ color3="\[$(tput setaf 2)\]"
 reset="\[$(tput sgr0)\]"
 
 git_ps1() { hash __git_ps1 2>/dev/null && __git_ps1; }
-export PS1="${color1}\t ${color2}\h:\w${color3}"'$(git_ps1)'" ${color2}\$${reset} "
+export PS1="${color1}\t ${color2}\h:\w${color3}"'$(shopt -q login_shell && git_ps1)'" ${color2}\$${reset} "
 #export LANG="en_US.UTF-8"
 
 

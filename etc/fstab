@@ -1,5 +1,4 @@
 UUID=your-uuid	/boot	vfat	noauto,noatime,discard	0 2
 UUID=your-uuid	/	ext4	defaults,noatime,discard	1 1
-/dev/zram0	swap	swap	pri=16383	0 0
-/dev/zram1	swap	swap	pri=16383	0 0
-/dev/zram2	/var/tmp/portage	ext4	rw,nosuid,noatime,nodev,discard	0 0
+/dev/zram0	swap	swap	pri=1000	0 0
+/dev/zram1	/var/tmp/portage	ext4	rw,nosuid,noatime,nodev,discard	0 0

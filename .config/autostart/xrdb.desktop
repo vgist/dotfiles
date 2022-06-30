@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
 Name=xrdb
-Exec=/usr/bin/xrdb -merge -I$HOME .config/X11/xresources
+Exec=/usr/bin/xrdb -merge -I$HOME .Xresources
 StartupNotify=false
 Terminal=false

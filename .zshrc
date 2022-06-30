@@ -47,7 +47,9 @@ fi
 git_ps1() { command git branch >/dev/null 2>&1 && __git_ps1; }
 
 # prompt
-export PS1='%F{7}%*%f %F{6}%m:%~%f%F{2}$(git_ps1)%f %F{6}$%f '
+#export PS1='%F{7}%*%f %F{6}%m:%~%f%F{2}$(git_ps1)%f %F{6}$%f '
+#export PS1='%F{7}%*%f %F{6}%m:%~%f%F{2}$(case $- in (*l*) git_ps1; esac)%f %F{6}$%f '
+export PS1='%F{7}%*%f %F{6}%m:%~%f%F{2}$([[ -o login ]] && git_ps1)%f %F{6}$%f '
 
 ttyctl -f
 

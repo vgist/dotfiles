@@ -1,7 +1,9 @@
+#
 # 1. Run "cat /sys/block/zram0/comp_algorithm" to select a compression algorithm that your kernel supports.
+#    a. speed: lz4 > zstd > lzo
+#    b. compression: zstd > lzo > lz4
 # 2. Run "which mkswap" to fixed command absolute path.
-# 3. Put "options zram num_devices=3" into /etc/modprobe.d/zram.conf
+# 3. Put "options zram num_devices=5" into /etc/modprobe.d/zram.conf
 # 4. Put "zram" into /etc/modules-load.d/zram.conf if runing with systemd
-KERNEL=="zram0", SUBSYSTEM=="block", DRIVER=="", ACTION=="add", ATTR{initstate}=="0", ATTR{comp_algorithm}="lz4", ATTR{disksize}="2G", RUN+="/sbin/mkswap $env{DEVNAME}"
-KERNEL=="zram1", SUBSYSTEM=="block", DRIVER=="", ACTION=="add", ATTR{initstate}=="0", ATTR{comp_algorithm}="lz4", ATTR{disksize}="2G", RUN+="/sbin/mkswap $env{DEVNAME}"
-KERNEL=="zram2", SUBSYSTEM=="block", DRIVER=="", ACTION=="add", ATTR{initstate}=="0", ATTR{comp_algorithm}="lz4", ATTR{disksize}="6G", RUN+="/sbin/mkfs.ext4 -O ^has_journal -L $name $env{DEVNAME}"
+KERNEL=="zram0", SUBSYSTEM=="block", DRIVER=="", ACTION=="add", ATTR{initstate}=="0", ATTR{comp_algorithm}="lz4", ATTR{disksize}="4G", RUN+="/sbin/mkswap $env{DEVNAME}"
+KERNEL=="zram1", SUBSYSTEM=="block", DRIVER=="", ACTION=="add", ATTR{initstate}=="0", ATTR{comp_algorithm}="lz4", ATTR{disksize}="7G", RUN+="/sbin/mkfs.ext4 -O ^has_journal -L $name $env{DEVNAME}"
