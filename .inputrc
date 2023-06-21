@@ -1,5 +1,22 @@
+# none beep
 set bell-style none
+
+# History search
 "\e[A":history-search-backward
 "\e[B":history-search-forward
 #"\C-p":history-search-backward
 #"\C-n":history-search-forward
+
+# color files by types
+set colored-stats on
+# Append char to indicate type
+set visible-stats on
+# Mark symlinked directories
+set mark-symlinked-directories on
+# Color the common prefix
+set colored-completion-prefix on
+# Color the common prefix in menu-complete
+set menu-complete-display-prefix on
+
+# Disabling control echo
+set echo-control-characters off

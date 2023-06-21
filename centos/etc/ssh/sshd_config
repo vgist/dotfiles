@@ -1,8 +1,8 @@
 #	$OpenBSD: sshd_config,v 1.103 2018/04/09 20:41:22 tj Exp $
 
-AcceptEnv LANG LC_* COLORTERM
+AcceptEnv LANG LC_*
 
-Subsystem   sftp    /usr/lib/openssh/sftp-server
+Subsystem	sftp	/usr/lib/openssh/sftp-server
 
 Protocol 2
 UsePAM yes
@@ -14,14 +14,9 @@ AddressFamily inet
 PermitRootLogin no
 PasswordAuthentication no
 SyslogFacility AUTHPRIV
-AuthorizedKeysFile  .ssh/authorized_keys
 PubkeyAuthentication yes
 ChallengeResponseAuthentication no
-UsePrivilegeSeparation sandbox
 ClientAliveInterval 60
-#PrintMotd no
-#PrintLastLog no
-Port your-port
-Match User user-name
+Port 22
+Match User username
     X11Forwarding no
-    PermitTTY yes

@@ -1,0 +1,35 @@
+#*/* PYTHON_TARGETS: -* python3_10
+#*/* PYTHON_SINGLE_TARGET: -* python3_10
+app-admin/conky curl imlib iostats mpd thinkpad wifi
+app-crypt/gnupg user-socket
+app-editors/emacs dynamic-loading gpm gtk imagemagick xft xwidgets
+app-containers/docker overlay
+app-emulation/qemu io-uring usbredir vhost-user-fs
+app-misc/tmux utempter
+app-portage/eix sqlite
+app-text/ghostscript-gpl cups
+app-text/poppler cjk
+dev-db/sqlite secure-delete
+dev-util/sysprof -unwind
+dev-vcs/git subversion
+dev-vcs/subversion perl
+gnome-base/gnome-extra-apps -share -shotwell
+gnome-base/gvfs afp archive cdda fuse gphoto2 ios mtp udisks
+gnome-base/nautilus sendto
+gui-wm/sway tray
+media-fonts/source-han-sans L10N: ja ko zh-CN zh-TW zh-HK
+media-libs/freetype utils
+media-libs/mesa osmesa
+media-sound/pulseaudio -daemon
+media-sound/mpd pipewire
+media-video/mpv drm libmpv
+media-video/pipewire sound-server
+net-firewall/nftables json python xtables
+net-wireless/bluez experimental
+net-wireless/wpa_supplicant tkip
+sys-apps/gnome-disk-utility fat
+sys-devel/clang-common default-compiler-rt default-lld llvm-libunwind
+sys-devel/gcc pgo
+sys-kernel/gentoo-sources symlink
+sys-libs/llvm-libunwind static-libs
+x11-wm/mutter screencast

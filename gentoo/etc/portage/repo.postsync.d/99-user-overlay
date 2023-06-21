@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# Follow the introduction https://wiki.gentoo.org/wiki/GitHub_Pull_Requests
+# You first need:
+# eselect repository enable overlay_name; emaint sync -r overlay_name
+
+DEV_USER=username
+OVERLAY_PATH=/var/db/repos/overlay_name
+
+find $OVERLAY_PATH -type d -exec setfacl -m u:$DEV_USER:rwx {} +
+find $OVERLAY_PATH -type f -exec setfacl -m u:$DEV_USER:rw {} +
+
+pushd $OVERLAY_PATH
+if ! (git config --local --list | grep user.name > /dev/null 2>&1); then
+	git config --local user.name "name"
+	git config --local user.email "email"
+	git config --local user.signingkey 0x00000000
+	git config --local commit.gpgsign 1
+fi
+
+# don't uncomment the below line, before you know what that means
+# if ! (git config --local --list | grep remote.user > /dev/null 2>&1); then
+# 	git remote add user git@github.com:user/repo.git
+# 	git pull user remote-branch:local-branch
+# fi
+popd

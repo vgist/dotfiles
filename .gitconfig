@@ -7,11 +7,13 @@
 	excludesfile = ~/.gitignore_global
 	attributesfile = ~/.gitattributes
 	whitespace = space-before-tab,-indent-with-non-tab,trailing-space
-	editor = vim
+	editor = vi
 [user]
 	name = nil
 	email = your@email.com
-	signingkey = public gpg key
+#	signingkey = public gpg key
+#[commit]
+#	gpgsign = true
 [diff]
 	tool = diff
 [alias]
@@ -19,16 +21,12 @@
 	branches = branch -a
 	remotes = remote -v
 	aliases = config --get-regexp alias
-	ll= log --graph --pretty=tformat:'%C(yellow)%h%Creset -%C(cyan)%d%Creset %s %C(dim green italic)(%cr, %an, %G?)' --abbrev-commit
-	l = log --stat --decorate --abbrev-commit --pretty=fuller --max-count=20
+	ll = log --graph --oneline --decorate --abbrev-commit --pretty=tformat:'%C(auto)%h%Creset -%C(auto)%d%Creset %s %C(auto)(%cr, %an, %G?)%Creset'
+	l = log --stat --decorate --abbrev-commit --pretty=fuller
 	sp = submodule update --recursive --init
 	sf = submodule foreach git submodule update --recursive --init
 [color]
 	ui = auto
-[commit]
-	gpgsign = true
-[github]
-	user = user
 [gist]
 	private = no
 	browse = no
@@ -38,15 +36,6 @@
 [pull]
 	default = simple
 	rebase = false
-[credential]
-	helper = osxkeychain
-[web]
-	browser = firefox
-#[https]
-#	proxy = socks5://127.0.0.1:1080
-#[http]
-#	proxy = socks5://127.0.0.1:1080
-#	postBuffer = 524288000
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f

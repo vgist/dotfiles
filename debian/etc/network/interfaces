@@ -8,6 +8,9 @@ iface lo inet loopback
 # auto eth0
 allow-hotplug eth0
 iface eth0 inet dhcp
+iface eth0 inet6 auto
+#        accept_ra 2
+#        privext 2
 
 # allow-hotplug wlan0
 # iface wlan0 inet dhcp

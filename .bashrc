@@ -4,7 +4,7 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-hash dircolors 2>/dev/null && eval $(dircolors -b)
+hash dircolors 2>/dev/null && eval "$(dircolors -b)"
 [[ -f $HOME/.bash_alias ]] && . ~/.bash_alias
 [[ -f /usr/bin/sudo ]] && complete -cf sudo
 [[ -f /usr/bin/man ]] && complete -cf man

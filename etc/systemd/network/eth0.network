@@ -1,0 +1,8 @@
+[Match]
+Name=eth0
+
+[Network]
+IPv6PrivacyExtensions=true
+
+[Link]
+Promiscuous=true

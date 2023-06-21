@@ -1,0 +1,2 @@
+# disable wifi power save
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="wl*", RUN+="/usr/bin/iwconfig wlp59s0 power off"
