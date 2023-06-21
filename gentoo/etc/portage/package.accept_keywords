@@ -1,0 +1,3 @@
+app-emulation/virtio-win ~amd64
+app-i18n/ibus-rime ~amd64
+net-fs/ksmbd-tools ~amd64

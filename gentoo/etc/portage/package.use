@@ -1,0 +1,18 @@
+#*/* PYTHON_TARGETS: -* python3_10
+#*/* PYTHON_SINGLE_TARGET: -* python3_10
+app-admin/conky curl imlib iostats mpd thinkpad wifi
+app-crypt/gnupg user-socket
+app-editors/emacs gpm gtk xft
+app-containers/docker overlay
+app-emulation/qemu io-uring usbredir vhost-user-fs
+app-portage/eix sqlite
+gnome-base/gnome-extra-apps -share -shotwell
+gui-wm/sway tray
+media-fonts/source-han-sans L10N: ja ko zh-CN zh-TW zh-HK
+media-libs/freetype utils
+media-libs/mesa osmesa
+media-video/mpv drm libmpv
+net-firewall/nftables json python xtables
+net-wireless/wpa_supplicant tkip
+sys-kernel/gentoo-sources symlink
+net-firewall/iptables nftables

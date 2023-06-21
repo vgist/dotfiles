@@ -1,0 +1,12 @@
+[Match]
+Name=eth0
+
+[Network]
+IPv6PrivacyExtensions=true
+#Address=CIDR
+#Gateway=gateway
+#DNS=119.29.29.29
+#DNS=2400:3200::1
+
+[Link]
+Promiscuous=true

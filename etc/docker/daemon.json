@@ -1,4 +1,6 @@
 {
+    "experimental": true,
+    "ip6tables": true,
     "registry-mirrors": [
         "https://docker.mirrors.sjtug.sjtu.edu.cn"
     ]
