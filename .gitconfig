@@ -22,7 +22,7 @@
 	remotes = remote -v
 	aliases = config --get-regexp alias
 	ll = log --graph --oneline --decorate --abbrev-commit --pretty=tformat:'%C(auto)%h%Creset -%C(auto)%d%Creset %s %C(auto)(%cr, %an, %G?)%Creset'
-	l = log --stat --decorate --abbrev-commit --pretty=fuller
+	logs = log --pretty=fuller --stat --decorate
 	sp = submodule update --recursive --init
 	sf = submodule foreach git submodule update --recursive --init
 [color]

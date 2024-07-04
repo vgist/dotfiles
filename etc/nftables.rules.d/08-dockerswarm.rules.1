@@ -1,0 +1,25 @@
+#!/usr/sbin/nft -f
+
+define docker_swarm_ports = {
+  tcp . 2377,
+  tcp . 7946,
+  udp . 4789,
+  udp . 7946
+}
+
+table inet filter {
+  set allowed_docker_swarm_ports {
+    type inet_proto . inet_service
+    counter
+    elements = $docker_swarm_ports
+  }
+
+  chain other_filter {
+    jump docker_swarm
+  }
+
+  chain docker_swarm {
+    meta l4proto . th dport @allowed_docker_swarm_ports accept
+    ip protocol esp counter accept
+  }
+}

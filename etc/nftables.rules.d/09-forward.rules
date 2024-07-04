@@ -1,0 +1,12 @@
+#!/usr/sbin/nft -f
+# special nat forwarding example
+
+# table inet filter {
+#   chain prerouting {
+#     ct state new tcp dport local_port counter dnat to remote_ip:remote_port comment "forwarding to remote_ip:remote_port"
+#   }
+
+#   chain postrouting {
+#     oifname $interfaces ip daddr remote_ip ct state new tcp dport remote_port counter masquerade
+#   }
+# }

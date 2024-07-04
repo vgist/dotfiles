@@ -24,16 +24,6 @@ if hash gpgconf 2>/dev/null; then
 fi
 
 
-# source git-prompt
-_git_prompt_path="
-    /usr/share/git/git-prompt.sh
-    /usr/share/git-core/contrib/completion/git-prompt.sh
-    /usr/lib/git-core/git-sh-prompt
-"
-for _i in $_git_prompt_path; do
-    [[ -f $_i ]] && source $_i;
-done
-
 # bash prompt color
 # https://misc.flogisoft.com/bash/tip_colors_and_formatting
 export GIT_PS1_SHOWDIRTYSTATE=1i
@@ -42,7 +32,21 @@ color2="\[$(tput setaf 6)\]"
 color3="\[$(tput setaf 2)\]"
 reset="\[$(tput sgr0)\]"
 
-git_ps1() { hash __git_ps1 2>/dev/null && __git_ps1; }
+git_ps1() {
+    if ! hash __git_ps1 2>/dev/null; then
+        # source git-prompt
+        _git_prompt_path="
+            /usr/share/git/git-prompt.sh
+            /usr/share/git-core/contrib/completion/git-prompt.sh
+            /usr/lib/git-core/git-sh-prompt"
+        for _i in $_git_prompt_path; do
+            [[ -f $_i ]] && source $_i
+        done
+        __git_ps1
+    else
+        __git_ps1
+    fi
+}
 export PS1="${color1}\t ${color2}\h:\w${color3}"'$(shopt -q login_shell && git_ps1)'" ${color2}\$${reset} "
 #export LANG="en_US.UTF-8"
 

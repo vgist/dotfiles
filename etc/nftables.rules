@@ -1,0 +1,48 @@
+#!/usr/sbin/nft -f
+#
+flush ruleset
+
+define wired = enp0s1
+define wireless = wlp2s0
+define interfaces = { $wired, $wireless }
+
+table netdev filter {
+  chain ingress {
+    type filter hook ingress devices = $interfaces priority -500; policy accept;
+    jump ingress_filter
+  }
+  chain ingress_filter {
+    ip frag-off & 0x1fff != 0 counter drop                      # drop all fragments
+    tcp flags & (fin|syn|rst|psh|ack|urg) == fin|syn|rst|psh|ack|urg counter drop # drop XMAS packets
+    tcp flags & (fin|syn|rst|psh|ack|urg) == 0x0 counter drop   # drop NULL packets
+    tcp flags syn tcp option maxseg size 1-535 counter drop     # drop uncommon MSS values
+  }
+}
+
+table inet filter {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; counter; policy accept;
+  }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat; counter; policy accept;
+  }
+
+  chain input {
+    type filter hook input priority filter; counter; policy drop;
+    jump base_filter
+    jump other_filter
+  }
+
+  chain base_filter {
+    ct state vmap { established: accept, related: accept, new: continue, invalid: drop } counter
+    # Allow loopback traffic
+    iifname lo counter accept
+    oifname lo counter accept
+  }
+
+  chain other_filter {
+  }
+}
+
+include "/etc/nftables.rules.d/*.rules"

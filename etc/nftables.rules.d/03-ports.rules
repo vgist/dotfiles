@@ -1,0 +1,22 @@
+#!/usr/sbin/nft -f
+
+define allowed_custom_ports = {
+  tcp . 22,
+  tcp . 3389
+}
+
+table inet filter {
+  set allowed_ports {
+    type inet_proto . inet_service
+    counter
+    elements = $allowed_custom_ports
+  }
+
+  chain other_filter {
+    jump custom_ports
+  }
+
+  chain custom_ports {
+    meta l4proto . th dport @allowed_ports accept
+  }
+}

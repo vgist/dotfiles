@@ -9,6 +9,7 @@ app-emulation/qemu
 app-eselect/eselect-repository
 app-i18n/ibus-rime
 app-misc/ccal
+app-misc/fastfetch
 app-misc/neofetch
 app-misc/tmux
 app-portage/eix
@@ -24,6 +25,7 @@ gui-apps/foot
 gui-wm/sway
 mail-client/mutt
 mail-client/thunderbird-bin
+media-fonts/dejavu
 media-fonts/noto-emoji
 media-fonts/source-han-sans
 media-libs/libva-intel-media-driver
@@ -39,9 +41,10 @@ sys-apps/smartmontools
 sys-apps/usbutils
 sys-boot/efibootmgr
 sys-devel/crossdev
+sys-firmware/broadcom-bt-firmware
 sys-firmware/intel-microcode
 sys-fs/btrfs-progs
 sys-fs/exfatprogs
 sys-kernel/gentoo-sources
 sys-kernel/linux-firmware
-www-client/firefox
+www-client/firefox-bin:esr

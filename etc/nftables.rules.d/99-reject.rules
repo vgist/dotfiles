@@ -1,0 +1,8 @@
+#!/usr/sbin/nft -f
+#
+
+table inet filter {
+  chain input {
+    counter reject with icmpx type host-unreachable
+  }
+}

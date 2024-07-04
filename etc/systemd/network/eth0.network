@@ -2,11 +2,16 @@
 Name=eth0
 
 [Network]
+# IPv6 Privacy extensions (RFC 4941)
 IPv6PrivacyExtensions=true
 #Address=CIDR
 #Gateway=gateway
 #DNS=119.29.29.29
 #DNS=2400:3200::1
+
+[IPv6AcceptRA]
+# Stable private IPv6 address (RFC 7217)
+Token=prefixstable
 
 [Link]
 Promiscuous=true

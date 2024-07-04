@@ -5,6 +5,8 @@
 alias grep='grep --color=auto'
 alias egrep='egrep --color=auto'
 alias less='less -R'
+alias ping='ping -n'
+alias ping6='ping6 -n'
 alias ssh='ssh -C'
 alias sudo='sudo '
 hash httping 2>/dev/null && alias httping='httping -S -K -Y -s -Z -X'

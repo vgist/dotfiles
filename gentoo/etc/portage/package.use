@@ -9,10 +9,13 @@ app-portage/eix sqlite
 gnome-base/gnome-extra-apps -share -shotwell
 gui-wm/sway tray
 media-fonts/source-han-sans L10N: ja ko zh-CN zh-TW zh-HK
-media-libs/freetype utils
+media-libs/freetype harfbuzz
 media-libs/mesa osmesa
+media-sound/pulseaudio -daemon
+media-video/ffmpeg libass
 media-video/mpv drm libmpv
+media-video/pipewire sound-server -gstreamer
 net-firewall/nftables json python xtables
-net-wireless/wpa_supplicant tkip
 sys-kernel/gentoo-sources symlink
 net-firewall/iptables nftables
+virtual/linux-sources firmware
