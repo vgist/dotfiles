@@ -13,3 +13,15 @@ table ip filter {
     meta mark $docker_mark counter accept
   }
 }
+
+# iptables6-nft compatibility
+table ip6 filter {
+  chain DOCKER-USER {
+    meta mark set $docker_mark
+  }
+
+  chain FORWARD {
+    type filter hook forward priority filter; policy accept;
+    meta mark $docker_mark counter accept
+  }
+}

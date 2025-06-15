@@ -1,5 +1,4 @@
-#
-# ~/.bash_alias
+# ~/.bash_aliases: defined for personal shell aliases.
 #
 
 alias grep='grep --color=auto'
@@ -12,6 +11,7 @@ alias sudo='sudo '
 hash httping 2>/dev/null && alias httping='httping -S -K -Y -s -Z -X'
 hash dig 2>/dev/null && alias dig='dig +noall +answer +search'
 hash netstat 2>/dev/null && alias netstat='netstat -an'
+bash mtr 2>/dev/null && alias mtr='mtr -bz '
 alias webpaste='curl -F "c=@-" "https://fars.ee/"'
 
 case `uname` in
