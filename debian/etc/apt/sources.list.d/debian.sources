@@ -1,0 +1,13 @@
+Types: deb
+URIs: http://mirror.nju.edu.cn/debian
+Suites: bookworm bookworm-updates bookworm-backports
+Components: main contrib non-free non-free-firmware
+Architectures: amd64
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://mirror.nju.edu.cn/debian-security
+Suites: bookworm-security
+Components: main contrib non-free non-free-firmware
+Architectures: amd64
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg

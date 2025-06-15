@@ -1,1 +1,6 @@
-deb http://opentuna.cn/docker-ce/linux/debian buster stable
+Types: deb
+URIs: https://mirror.nju.edu.cn/docker-ce/linux/debian
+Suites: bookworm
+Components: stable
+Architectures: amd64
+Signed-By: /usr/share/keyrings/docker.asc
