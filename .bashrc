@@ -1,11 +1,11 @@
-# ~/.bashrc
+# ~/.bashrc: executed by bash(1) for non-login interactive shells.
 #
 
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
 hash dircolors 2>/dev/null && eval "$(dircolors -b)"
-[[ -f $HOME/.bash_alias ]] && . ~/.bash_alias
+[[ -f $HOME/.bash_aliases ]] && . ~/.bash_aliases
 [[ -f /usr/bin/sudo ]] && complete -cf sudo
 [[ -f /usr/bin/man ]] && complete -cf man
 [[ -d $HOME/.bash ]] && export PATH=$PATH:$HOME/.bash
