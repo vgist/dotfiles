@@ -5,6 +5,7 @@ typeset -U fpath
 # ----- behavior -----
 unsetopt BEEP
 unsetopt LIST_BEEP
+unsetopt NOMATCH
 
 setopt completealiases
 setopt extendedglob
@@ -21,7 +22,9 @@ bindkey "\e[B" history-beginning-search-forward
 
 # ----- completion -----
 zstyle ':completion:*' rehash true
-zstyle ':completion:*:ssh:*' hosts on
+_ssh_aliases=($(awk '/^Host / && !/\*/ {print $2}' ~/.ssh/config 2>/dev/null))
+zstyle ':completion:*:*:(ssh|scp|rsync):*:hosts' ignored-patterns "^(${(j:|:)_ssh_aliases})"
+#zstyle ':completion:*:ssh:*' hosts on
 zstyle ':completion:*' menu select=2
 zstyle ':completion::complete:*' gain-privileges 1
 zstyle ":completion:*" auto-description "specify: %d"
