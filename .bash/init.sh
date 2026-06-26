@@ -277,7 +277,7 @@ install_common_packages() {
 
   local packages=(
     bash-completion ca-certificates curl "$PKG_DNSUTILS" git nftables
-    openssh-server sudo tmux "$PKG_VIM" podman aardvark-dns
+    openssh-server sudo tmux "$PKG_VIM"
   )
   if [[ "$OS_FAMILY" == "debian" && "$HAS_ZRAM_SUPPORT" == "1" ]]; then
     packages+=(systemd-zram-generator)
