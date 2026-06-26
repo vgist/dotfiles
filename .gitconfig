@@ -27,15 +27,17 @@
 	sf = submodule foreach git submodule update --recursive --init
 [color]
 	ui = auto
-[gist]
-	private = no
-	browse = no
+[init]
+	defaultBranch = master
 [push]
 	default = simple
 	followTags = true
 [pull]
 	default = simple
 	rebase = false
+[gist]
+	private = no
+	browse = no
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
