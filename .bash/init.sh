@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 # =========================
 # 默认值（交互模式的兜底值；可用环境变量覆盖）
@@ -49,6 +49,12 @@ IN_CONTAINER=0
 ZRAM_PKG=""
 ZRAM_CONF_FILE=""
 ZRAM_SERVICE=""
+
+# 预声明：这些变量在后续函数中被赋值/引用，此处仅声明以明确初始状态。
+INSTALL_PACKAGES=()  # 待安装的基础软件包列表（由 collect_install_packages 填充）
+INSTALL_ZRAM=0       # 是否需要安装/配置 zram（1=是，0=否）
+DOTFILES_AVAILABLE=0 # dotfiles 是否成功克隆/可用（1=是，0=否）
+TZ_MAP_ENTRIES=()    # 时区映射规则数组（由 timezone_from_region 填充）
 
 # =========================
 # 日志
@@ -135,6 +141,10 @@ append_line_if_missing() {
   if ! grep -qxF "$line" "$target" 2>/dev/null; then
     printf '%s\n' "$line" >> "$target"
   fi
+}
+
+has_systemctl() {
+  command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]
 }
 
 # =========================
@@ -229,16 +239,16 @@ prompt_pubkeys() {
 
 # 按模式采集四个配置项（环境变量已指定时跳过）。
 # mode=install：用户名/端口/swap 循环询问（带默认值），SSH 公钥必填；
-# mode=check：仅询问用户名，端口/swap 用默认值，公钥不采集（check 不使用）。
+# mode=check：不询问任何交互项，用户名/端口/swap 用默认值，公钥不采集。
 collect_inputs() {
   local mode="$1"
 
   if [[ -z "$TARGET_USER" ]]; then
-    if is_interactive; then
+    if is_interactive && [[ "$mode" == "install" ]]; then
       TARGET_USER="$(prompt_user)"
     else
       TARGET_USER="$DEFAULT_TARGET_USER"
-      log info "未指定 TARGET_USER，使用默认值：$TARGET_USER。"
+      log info "未指定 TARGET_USER，使用默认值：${TARGET_USER}。"
     fi
   fi
 
@@ -270,8 +280,12 @@ collect_inputs() {
     fi
   else
     # check 模式：只需满足 verify_inputs 校验，端口/swap 取默认值，公钥不涉及。
-    [[ -z "$SSH_PORT" ]] && SSH_PORT="$DEFAULT_SSH_PORT"
-    [[ -z "$SWAP_SIZE_MB" ]] && SWAP_SIZE_MB="$DEFAULT_SWAP_SIZE_MB"
+    if [[ -z "$SSH_PORT" ]]; then
+      SSH_PORT="$DEFAULT_SSH_PORT"
+    fi
+    if [[ -z "$SWAP_SIZE_MB" ]]; then
+      SWAP_SIZE_MB="$DEFAULT_SWAP_SIZE_MB"
+    fi
   fi
 }
 
@@ -279,7 +293,7 @@ collect_inputs() {
 # 校验
 # =========================
 require_root() {
-  if [[ "${EUID}" -eq 0 ]]; then
+  if (( EUID == 0 )); then
     return 0
   fi
   if (( DRY_RUN == 1 )); then
@@ -297,9 +311,19 @@ verify_inputs() {
   [[ "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "TARGET_USER 不合法：$TARGET_USER"
   [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || die "SSH_PORT 必须是数字。"
   (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || die "SSH_PORT 超出范围：$SSH_PORT"
-  [[ "$SWAP_SIZE_MB" =~ ^[0-9]+$ ]] || die "SWAP_SIZE_MB 必须是数字。"
-  (( SWAP_SIZE_MB >= 0 )) || die "SWAP_SIZE_MB 必须大于等于 0。"
+  [[ "$SWAP_SIZE_MB" =~ ^[0-9]+$ ]] || die "SWAP_SIZE_MB 必须是非负整数。"
   [[ "$AUTO_TZ" == "0" || "$AUTO_TZ" == "1" ]] || die "AUTO_TZ 只能是 0 或 1。"
+
+  # 提前校验公钥格式：避免 install 跑到 configure_sshd 才因坏公钥中断，
+  # 留下半配置的系统。configure_sshd 仍保留对 authorized_keys 的最终校验。
+  if [[ -n "$SSH_PUBKEYS" ]]; then
+    local key
+    while IFS= read -r key; do
+      [[ -z "$key" ]] && continue
+      [[ "$key" =~ ^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)[[:space:]] ]] \
+        || die "SSH_PUBKEYS 含无效公钥（需以 ssh-ed25519/ssh-rsa/ecdsa-sha2-nistp256 等开头）：${key:0:32}..."
+    done <<< "$SSH_PUBKEYS"
+  fi
 }
 
 # =========================
@@ -314,6 +338,12 @@ detect_os() {
   OS_VERSION_ID="${VERSION_ID:-unknown}"
   OS_VERSION_MAJOR="${OS_VERSION_ID%%.*}"
 
+  # rolling 发行版（如 Debian sid/unstable）不提供 VERSION_ID，
+  # 提前给出明确提示，而不是让后续版本比较报出 "unknown"。
+  if [[ "$OS_VERSION_ID" == "unknown" ]]; then
+    die "无法识别系统版本：/etc/os-release 缺少 VERSION_ID（rolling 发行版不受支持）。仅支持 Debian 11/12/13、Ubuntu 22.04/24.04/25.04、AlmaLinux/Rocky/CentOS 9/10。"
+  fi
+
   case "$OS_ID" in
     debian|ubuntu)
       OS_FAMILY="debian"
@@ -326,7 +356,7 @@ detect_os() {
         [[ "$OS_VERSION_MAJOR" == "11" || "$OS_VERSION_MAJOR" == "12" || "$OS_VERSION_MAJOR" == "13" ]] || die "不支持的 Debian 版本：$OS_VERSION_ID；仅支持 Debian 11/12/13。"
       fi
       PKG_DNSUTILS="dnsutils"
-      PKG_VIM="vim"
+      PKG_VIM="vim-tiny"
       if [[ "$OS_VERSION_MAJOR" == "11" ]]; then
         ZRAM_PKG="zram-tools"
         ZRAM_CONF_FILE="/etc/default/zramswap"
@@ -344,7 +374,7 @@ detect_os() {
       SUDO_GROUP="wheel"
       [[ "$OS_VERSION_MAJOR" == "9" || "$OS_VERSION_MAJOR" == "10" ]] || die "不支持的 ${OS_ID} 版本：$OS_VERSION_ID；仅支持 AlmaLinux/Rocky/CentOS 9/10。"
       PKG_DNSUTILS="bind-utils"
-      PKG_VIM="vim-enhanced"
+      PKG_VIM="vim-minimal"
       ZRAM_PKG="zram-generator"
       ZRAM_CONF_FILE="/etc/systemd/zram-generator.conf"
       ZRAM_SERVICE="systemd-zram-setup@zram0"
@@ -356,6 +386,12 @@ detect_os() {
 }
 
 detect_kernel_features() {
+  if (( IN_CONTAINER == 1 )); then
+    HAS_ZRAM_SUPPORT=0
+    HAS_SWAP_SUPPORT=0
+    log info "容器环境（LXC/OpenVZ），跳过 zram/swap 检测。"
+    return 0
+  fi
   if grep -qw '^zram' /proc/modules 2>/dev/null || [[ -d /sys/module/zram ]] || modinfo zram >/dev/null 2>&1; then
     HAS_ZRAM_SUPPORT=1
   else
@@ -397,6 +433,124 @@ detect_container() {
 }
 
 # =========================
+# SELinux
+# =========================
+disable_selinux() {
+  [[ "$OS_FAMILY" == "rhel" ]] || return 0
+  (( IN_CONTAINER == 1 )) && return 0
+
+  local selinux_config="/etc/selinux/config"
+  local is_enabled=0
+
+  if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled 2>/dev/null; then
+    is_enabled=1
+  elif command -v getenforce >/dev/null 2>&1; then
+    local mode
+    mode="$(getenforce 2>/dev/null || true)"
+    [[ "$mode" == "Enforcing" || "$mode" == "Permissive" ]] && is_enabled=1
+  elif [[ -f /sys/fs/selinux/enforce ]]; then
+    # 兜底：极简镜像未装 libselinux-utils 时直接读内核接口（存在即已加载 SELinux）
+    is_enabled=1
+  fi
+
+  if (( is_enabled == 1 )); then
+    log info "检测到 SELinux 已启用，正在临时关闭并配置为永久关闭。"
+    if command -v setenforce >/dev/null 2>&1; then
+      run_cmd setenforce 0 || log warn "setenforce 0 临时关闭 SELinux 失败。"
+    fi
+    if [[ -f "$selinux_config" ]]; then
+      if (( DRY_RUN == 1 )); then
+        log dryrun "备份并修改 $selinux_config：设置 SELINUX=disabled"
+      else
+        if [[ ! -e "${selinux_config}.bak.init" ]]; then
+          cp -a "$selinux_config" "${selinux_config}.bak.init"
+        fi
+        if grep -q '^[[:space:]]*SELINUX=' "$selinux_config"; then
+          sed -i 's/^[[:space:]]*SELINUX=.*/SELINUX=disabled/' "$selinux_config"
+        else
+          printf 'SELINUX=disabled\n' >> "$selinux_config"
+        fi
+      fi
+    else
+      log warn "未找到 $selinux_config，无法配置 SELinux 永久关闭。"
+    fi
+  else
+    log info "SELinux 未启用或已处于关闭状态。"
+  fi
+}
+
+# =========================
+# 防火墙
+# =========================
+has_firewalld() {
+  rpm -q firewalld >/dev/null 2>&1 || command -v firewall-cmd >/dev/null 2>&1
+}
+
+has_ufw() {
+  dpkg-query -W -f='${Status}' ufw 2>/dev/null | grep -q 'install ok installed' \
+    || command -v ufw >/dev/null 2>&1
+}
+
+# 【防断连加固】先显式将默认策略置为 ACCEPT，再清空各表规则，
+# 彻底杜绝因系统默认 Policy 为 DROP 导致清空规则瞬间掐断现有 SSH 连接。
+flush_firewall_rules() {
+  local ipt table
+  for ipt in iptables ip6tables; do
+    command -v "$ipt" >/dev/null 2>&1 || continue
+    run_cmd "$ipt" -P INPUT ACCEPT 2>/dev/null || true
+    run_cmd "$ipt" -P FORWARD ACCEPT 2>/dev/null || true
+    run_cmd "$ipt" -P OUTPUT ACCEPT 2>/dev/null || true
+    for table in nat mangle raw security; do
+      run_cmd "$ipt" -t "$table" -F 2>/dev/null || true
+      run_cmd "$ipt" -t "$table" -X 2>/dev/null || true
+    done
+    run_cmd "$ipt" -F 2>/dev/null || true
+    run_cmd "$ipt" -X 2>/dev/null || true
+  done
+
+  # nftables：flush ruleset 彻底卸载规则表，直通无阻，不会中断已有连接
+  if command -v nft >/dev/null 2>&1; then
+    run_cmd nft flush ruleset 2>/dev/null || true
+  fi
+}
+
+cleanup_firewalld() {
+  [[ "$OS_FAMILY" == "rhel" ]] || return 0
+  has_firewalld || return 0
+
+  log info "检测到 firewalld 已安装，正在清空规则并卸载。"
+  if has_systemctl; then
+    run_cmd systemctl stop firewalld 2>/dev/null || true
+    run_cmd systemctl disable firewalld 2>/dev/null || true
+  fi
+
+  flush_firewall_rules
+
+  # 卸载失败不致命：服务已停用、规则已清空，降级为警告继续安装流程
+  pkg_mgr remove firewalld || log warn "卸载 firewalld 失败（服务已停用、规则已清空），请稍后手动执行 dnf remove firewalld。"
+}
+
+cleanup_ufw() {
+  [[ "$OS_FAMILY" == "debian" ]] || return 0
+  has_ufw || return 0
+
+  log info "检测到 ufw 已安装，正在清空规则并卸载。"
+  # ufw disable 会自行卸载其内核规则并恢复放行，不影响现有连接
+  if command -v ufw >/dev/null 2>&1; then
+    run_cmd ufw --force disable 2>/dev/null || true
+  fi
+  if has_systemctl; then
+    run_cmd systemctl stop ufw 2>/dev/null || true
+    run_cmd systemctl disable ufw 2>/dev/null || true
+  fi
+
+  flush_firewall_rules
+
+  # 卸载失败不致命：服务已停用、规则已清空，降级为警告继续安装流程
+  pkg_mgr remove ufw || log warn "卸载 ufw 失败（服务已停用、规则已清空），请稍后手动执行 apt-get purge ufw。"
+}
+
+# =========================
 # 包管理
 # =========================
 tune_pkg_manager() {
@@ -416,10 +570,10 @@ Dir::Cache::srcpkgcache "";
 EOF
       ;;
     rhel)
-      # 该文件由 init.sh 托管，若已有内容先备份
+      # 该文件由 init.sh 托管；若已有内容且尚未备份，则先备份（仅首次，避免覆盖原始备份）
       if (( DRY_RUN == 1 )); then
         log dryrun "备份 dnf.conf：cp -a $DNF_CONF_FILE ${DNF_CONF_FILE}.bak.init"
-      elif [[ -f "$DNF_CONF_FILE" ]]; then
+      elif [[ -f "$DNF_CONF_FILE" && ! -e "${DNF_CONF_FILE}.bak.init" ]]; then
         cp -a "$DNF_CONF_FILE" "${DNF_CONF_FILE}.bak.init"
       fi
       write_file "$DNF_CONF_FILE" <<'EOF'
@@ -427,7 +581,6 @@ EOF
 tsflags=nodocs
 install_weak_deps=0
 fastestmirror=False
-metadata_expire=never
 gpgcheck=1
 installonly_limit=3
 clean_requirements_on_remove=True
@@ -448,6 +601,7 @@ pkg_mgr() {
       case "$action" in
         update) run_cmd apt-get update -y ;;
         install) run_cmd apt-get install -y --no-install-recommends "$@" ;;
+        remove) run_cmd apt-get purge -y "$@" ;;
         *) die "未知包管理动作：$action" ;;
       esac
       ;;
@@ -455,6 +609,7 @@ pkg_mgr() {
       case "$action" in
         update) run_cmd dnf makecache -y ;;
         install) run_cmd dnf install -y "$@" ;;
+        remove) run_cmd dnf remove -y "$@" ;;
         *) die "未知包管理动作：$action" ;;
       esac
       ;;
@@ -462,36 +617,39 @@ pkg_mgr() {
   esac
 }
 
+collect_install_packages() {
+  INSTALL_PACKAGES=(
+    bash-completion ca-certificates curl "$PKG_DNSUTILS" git nftables
+    openssh-server sudo tmux "$PKG_VIM"
+  )
+  INSTALL_ZRAM=0
+  if (( IN_CONTAINER == 1 )); then
+    :  # 容器环境，跳过 zram（INSTALL_ZRAM 保持 0）
+  elif (( HAS_ZRAM_SUPPORT == 1 )); then
+    if [[ "$OS_FAMILY" == "debian" ]]; then
+      INSTALL_PACKAGES+=("$ZRAM_PKG")
+    elif [[ "$OS_FAMILY" == "rhel" ]]; then
+      INSTALL_ZRAM=1
+    fi
+  fi
+}
+
 install_common_packages() {
   log info "安装基础软件包。"
   tune_pkg_manager
   pkg_mgr update
 
-  local packages=(
-    bash-completion ca-certificates curl "$PKG_DNSUTILS" git nftables
-    openssh-server sudo tmux "$PKG_VIM"
-  )
-  # 汇总"该装 zram"的判定；RHEL 的 zram 单独在下方可选安装分支处理
-  local install_zram=0
-  if [[ "$HAS_ZRAM_SUPPORT" == "1" ]]; then
-    if (( IN_CONTAINER == 1 )); then
-      log warn "容器环境（LXC/OpenVZ），跳过 $ZRAM_PKG 安装。"
-    elif [[ "$OS_FAMILY" == "debian" ]]; then
-      packages+=("$ZRAM_PKG")
-    elif [[ "$OS_FAMILY" == "rhel" ]]; then
-      install_zram=1
-    fi
-  else
+  collect_install_packages
+  if (( IN_CONTAINER == 1 )); then
+    log warn "容器环境（LXC/OpenVZ），跳过 $ZRAM_PKG 安装。"
+  elif (( HAS_ZRAM_SUPPORT != 1 )); then
     log warn "内核未检测到 zram 支持，跳过 $ZRAM_PKG。"
   fi
-  pkg_mgr install "${packages[@]}"
+  pkg_mgr install "${INSTALL_PACKAGES[@]}"
 
-  if (( install_zram == 1 )); then
-    if pkg_mgr install "$ZRAM_PKG"; then
-      :
-    else
-      log warn "无法安装可选包 $ZRAM_PKG；其余基础软件包已继续安装，后续仅在检测到已安装时配置 zram。"
-    fi
+  if (( INSTALL_ZRAM == 1 )); then
+    pkg_mgr install "$ZRAM_PKG" \
+      || log warn "无法安装可选包 $ZRAM_PKG；其余基础软件包已继续安装，后续仅在检测到已安装时配置 zram。"
   fi
 }
 
@@ -535,16 +693,12 @@ http_get_quick() {
   curl -fsSL --connect-timeout 2 --max-time 4 "$@" "$url" 2>/dev/null || true
 }
 
-has_systemctl() {
-  command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]
-}
-
 timezone_from_region() {
   local region_raw="$1"
   local region
   region="$(printf '%s' "$region_raw" | tr '[:upper:]' '[:lower:]')"
 
-  # TZ_MAP migrated to plain array for Bash 3.x (MacOS) compat.
+  # 时区映射使用普通数组（兼容 Bash 3.x / macOS，不依赖关联数组）。
   TZ_MAP_ENTRIES=(
     "cn-:Asia/Shanghai"
     "china:Asia/Shanghai"
@@ -606,9 +760,23 @@ timezone_from_region() {
 }
 
 timezone_from_cloud_metadata() {
-  local zone="" region=""
+  local zone="" region="" token=""
 
-  zone="$(http_get_quick "http://169.254.169.254/latest/meta-data/placement/availability-zone")"
+  # AWS IMDSv2：先申请 token；IMDSv2-only 实例上无 token 的 GET 会返回 401。
+  # 非 EC2 环境拿不到 token，退化为无 token 请求（IMDSv1 或非 AWS）。
+  if command -v curl >/dev/null 2>&1; then
+    token="$(curl -fsS --connect-timeout 2 --max-time 4 -X PUT \
+      -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
+      "http://169.254.169.254/latest/api/token" 2>/dev/null || true)"
+  fi
+
+  local imds_url="http://169.254.169.254/latest/meta-data/placement/availability-zone"
+  if [[ -n "$token" ]]; then
+    zone="$(http_get_quick "$imds_url" -H "X-aws-ec2-metadata-token: ${token}")"
+  else
+    zone="$(http_get_quick "$imds_url")"
+  fi
+
   if [[ -n "$zone" ]]; then
     region="${zone%[a-z]}"
     timezone_from_region "$region" && return 0
@@ -693,6 +861,16 @@ ensure_user() {
     log info "创建用户：$TARGET_USER。"
   fi
 
+  # 拒绝系统账号（UID < 1000，含 root=0、daemon=1、bin=2 等）：
+  # fix_home_permissions 会递归 chown 目标用户的 home，若目标是系统账号，
+  # 会把 /usr/sbin 之类的系统目录整体改属主；root 则会被 configure_sshd
+  # 写入的 PermitRootLogin no 挡在 SSH 之外。dry-run 下用户可能尚未创建，此时跳过。
+  local uid
+  uid="$(id -u "$TARGET_USER" 2>/dev/null || true)"
+  if [[ -n "$uid" ]] && (( uid < 1000 )); then
+    die "TARGET_USER=${TARGET_USER} 是系统账号（UID=${uid}），拒绝继续。"
+  fi
+
   if (( DRY_RUN == 1 )); then
     # dry-run 也先尝试 getent 解析真实 home，失败才回退默认路径
     USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
@@ -700,13 +878,23 @@ ensure_user() {
   else
     USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
     [[ -z "$USER_HOME" ]] && USER_HOME="$(grep "^${TARGET_USER}:" /etc/passwd | cut -d: -f6)"
-    if [[ -n "$USER_HOME" && -d "$USER_HOME" ]]; then
-      :
-    else
+    if [[ -z "$USER_HOME" || ! -d "$USER_HOME" ]]; then
       log warn "无法解析用户 home 目录（解析结果：${USER_HOME:-<空>}）。"
       die "请确认 ${TARGET_USER} 的 home 目录是否正常存在。"
     fi
   fi
+
+  # fix_home_permissions 会递归 chown USER_HOME，因此只接受 /home/ 下的路径。
+  # 白名单比枚举系统目录可靠；先规范化末尾斜杠，防止 /home/ 绕过。
+  USER_HOME="${USER_HOME%/}"
+  if [[ "$USER_HOME" != /home/* ]]; then
+    die "USER_HOME 必须位于 /home 下：${USER_HOME:-<空>}，拒绝执行递归 chown。"
+  fi
+
+  if ! getent group "$TARGET_USER" >/dev/null 2>&1; then
+    log warn "未找到同名组 ${TARGET_USER}，后续 chown ${TARGET_USER}:${TARGET_USER} 可能失败。"
+  fi
+
   DOTFILES_DIR="$USER_HOME/.dotfiles"
 }
 
@@ -731,6 +919,11 @@ configure_authorized_keys() {
   local auth_file="$ssh_dir/authorized_keys"
 
   run_cmd install -d -m 700 -o "$TARGET_USER" -g "$TARGET_USER" "$ssh_dir"
+  # 防符号链接劫持：authorized_keys 若为软链则删除重建，避免跟随链接破坏任意文件
+  if (( DRY_RUN == 0 )) && [[ -L "$auth_file" ]]; then
+    log warn "$auth_file 是符号链接，已删除后重建为普通文件。"
+    rm -f "$auth_file"
+  fi
   run_cmd touch "$auth_file"
   run_cmd chown "$TARGET_USER:$TARGET_USER" "$auth_file"
   run_cmd chmod 600 "$auth_file"
@@ -771,7 +964,11 @@ configure_sshd() {
   local file="$dir/99-${TARGET_USER}.conf"
 
   if ! grep -Eq '^[[:space:]]*Include[[:space:]].*sshd_config\.d' /etc/ssh/sshd_config 2>/dev/null; then
-    log warn "主 sshd_config 可能不包含 drop-in 目录，配置可能不会生效。"
+    if (( DRY_RUN == 1 )); then
+      log warn "主 sshd_config 未包含 sshd_config.d，drop-in 配置不会生效（dry-run 继续）。"
+    else
+      die "主 sshd_config 未包含 sshd_config.d，drop-in 配置不会生效。请在 /etc/ssh/sshd_config 顶部添加 'Include /etc/ssh/sshd_config.d/*.conf' 后重试。"
+    fi
   fi
 
   run_cmd install -d -m 755 "$dir"
@@ -804,13 +1001,31 @@ configure_sshd() {
     return 0
   fi
 
+  # Ubuntu 22.10+/24.04 等使用 systemd socket activation 管理 ssh 监听端口，
+  # 此时 sshd_config 中的 Port 会被忽略，必须改写 ssh.socket 的 ListenStream 才能真正改端口。
+  local use_ssh_socket=0
+  if systemctl is-enabled ssh.socket >/dev/null 2>&1 || systemctl is-active ssh.socket >/dev/null 2>&1; then
+    use_ssh_socket=1
+  fi
+
+  if (( use_ssh_socket == 1 )); then
+    log info "检测到 ssh.socket（socket activation），改写其监听端口为 $SSH_PORT。"
+    local sock_dir="/etc/systemd/system/ssh.socket.d"
+    run_cmd install -d -m 755 "$sock_dir"
+    {
+      printf '[Socket]\n'
+      printf 'ListenStream=\n'
+      printf 'ListenStream=%s\n' "$SSH_PORT"
+    } | write_file "$sock_dir/init.sh-listen.conf"
+  fi
+
   # 重启前校验公钥，避免锁死：ssh 服务将禁用密码登录，若无可登录公钥则危险
   local auth_file="$USER_HOME/.ssh/authorized_keys"
   if (( DRY_RUN == 1 )); then
     log dryrun "校验 $TARGET_USER 的有效 SSH 公钥（authorized_keys）。"
   else
     if [[ ! -f "$auth_file" ]] || [[ ! -s "$auth_file" ]] || \
-        ! grep -qE '^ssh-(ed25519|rsa|ecdsa|dss) ' "$auth_file"; then
+        ! grep -qE '^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)[[:space:]]' "$auth_file"; then
       die "未找到 $TARGET_USER 的有效 SSH 公钥，拒绝重启 sshd 以防锁死。"
     fi
   fi
@@ -820,19 +1035,20 @@ configure_sshd() {
   else
     systemctl enable "$SSH_SERVICE" >/dev/null 2>&1 || log warn "启用 SSH 服务失败，但继续尝试重启。"
   fi
+  run_cmd systemctl daemon-reload
+  if (( use_ssh_socket == 1 )); then
+    run_cmd systemctl restart ssh.socket
+  fi
   run_cmd systemctl restart "$SSH_SERVICE"
 }
 
 # =========================
 # dotfiles 与编辑器
-has_ip_command() {
-  command -v ip >/dev/null 2>&1
-}
-
+# =========================
 is_ipv6_only_network() {
   local has_v4=0
   local has_v6=0
-  has_ip_command || return 1
+  command -v ip >/dev/null 2>&1 || return 1
 
   if ip -4 route show default 2>/dev/null | grep -q '^'; then
     has_v4=1
@@ -841,7 +1057,7 @@ is_ipv6_only_network() {
     has_v6=1
   fi
 
-  [[ "$has_v6" == "1" && "$has_v4" == "0" ]]
+  (( has_v6 == 1 && has_v4 == 0 ))
 }
 
 add_github_hosts_ipv6() {
@@ -882,12 +1098,31 @@ remove_github_hosts_ipv6() {
     return 0
   fi
 
-  local suffix=".init-sh.bak"
-  local pat
+  # /etc/hosts 在容器中常以 bind mount 挂载，sed -i 的 rename 语义会失败
+  # （Device or resource busy）；改为写临时文件后原地覆盖，不更换 inode。
+  local filter="" pat
   for pat in "${patterns[@]}"; do
-    sed -i"$suffix" "/^[[:space:]]*${pat}/d" "$hosts_file" 2>/dev/null || true
+    filter+="${filter:+|}${pat}"
   done
-  rm -f "${hosts_file}${suffix}"
+
+  local tmp
+  tmp="$(mktemp)" || { log warn "无法创建临时文件，跳过清理 /etc/hosts。"; return 0; }
+  if grep -Ev "^[[:space:]]*(${filter})" "$hosts_file" > "$tmp" 2>/dev/null; then
+    cat "$tmp" > "$hosts_file" 2>/dev/null || log warn "写回 $hosts_file 失败。"
+  else
+    log warn "读取 $hosts_file 失败，保持原文件不变。"
+  fi
+  rm -f "$tmp"
+}
+
+# 用法: clone_dotfiles_repo <repo>
+# 以目标用户身份浅克隆到 $DOTFILES_DIR；成功则置 DOTFILES_AVAILABLE=1 并修正属主。
+clone_dotfiles_repo() {
+  local repo="$1"
+  sudo -u "$TARGET_USER" -H env GIT_TERMINAL_PROMPT=0 git clone --depth 1 -- "$repo" "$DOTFILES_DIR" || return 1
+  DOTFILES_AVAILABLE=1
+  chown -R "$TARGET_USER:$TARGET_USER" "$DOTFILES_DIR" 2>/dev/null || log warn "无法更改 dotfiles 所有权。"
+  log info "dotfiles 已克隆：$(sudo -u "$TARGET_USER" -H git -C "$DOTFILES_DIR" rev-parse --short HEAD 2>/dev/null || true)"
 }
 
 clone_or_update_dotfiles() {
@@ -921,26 +1156,14 @@ clone_or_update_dotfiles() {
     return 0
   fi
 
-  if sudo -u "$TARGET_USER" -H env GIT_TERMINAL_PROMPT=0 git clone --depth 1 -- "$DOTFILES_REPO" "$DOTFILES_DIR"; then
-    DOTFILES_AVAILABLE=1
-    chown -R "$TARGET_USER:$TARGET_USER" "$DOTFILES_DIR" 2>/dev/null || log warn "无法更改 dotfiles 所有权。"
-    log info "dotfiles 已克隆：$(sudo -u "$TARGET_USER" -H git -C "$DOTFILES_DIR" rev-parse --short HEAD 2>/dev/null || true)"
-    return 0
-  fi
-
+  clone_dotfiles_repo "$DOTFILES_REPO" && return 0
   log warn "主 dotfiles 仓库克隆失败：$DOTFILES_REPO。"
-  if sudo -u "$TARGET_USER" -H env GIT_TERMINAL_PROMPT=0 git clone --depth 1 -- "$DOTFILES_FALLBACK_REPO" "$DOTFILES_DIR"; then
-    DOTFILES_AVAILABLE=1
-    chown -R "$TARGET_USER:$TARGET_USER" "$DOTFILES_DIR" 2>/dev/null || log warn "无法更改 dotfiles 所有权。"
-    log info "dotfiles 已克隆：$(sudo -u "$TARGET_USER" -H git -C "$DOTFILES_DIR" rev-parse --short HEAD 2>/dev/null || true)"
-    return 0
-  fi
-
+  clone_dotfiles_repo "$DOTFILES_FALLBACK_REPO" && return 0
   die "主仓库和备用仓库均克隆失败，无法继续。"
 }
 
 apply_sysctl_custom() {
-  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles not available, skipping sysctl custom"; return 0; }
+  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过自定义 sysctl 配置。"; return 0; }
   if (( IN_CONTAINER == 1 )); then
     log info "容器环境（LXC/OpenVZ），跳过自定义 sysctl 配置（不复制 88-custom.conf）。"
     return 0
@@ -987,11 +1210,7 @@ apply_sysctl_custom() {
       value="${value%"${value##*[![:space:]]}"}"
       [[ -z "$key" ]] && continue
       line="$key=$value"
-      if sysctl -w "$line" >/dev/null 2>&1; then
-        :
-      else
-        log warn "sysctl 应用失败（第 ${lineno} 行）：$line"
-      fi
+      sysctl -w "$line" >/dev/null 2>&1 || log warn "sysctl 应用失败（第 ${lineno} 行）：$line"
     done <&3
     set -e
     exec 3<&-
@@ -1002,10 +1221,10 @@ apply_sysctl_custom() {
 }
 
 link_dotfiles() {
-  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles not available, skipping link_dotfiles"; return 0; }
+  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过 dotfiles 链接。"; return 0; }
   local files=(
-    .bash .bash_aliases .bash_color .bash_logout .bash_profile
-    .bashrc .dir_colors .gitconfig .gitignore_global .inputrc .tmux.conf .toprc
+    .bash .bash_aliases .bash_logout .bash_profile
+    .bashrc .gitconfig .gitignore_global .inputrc .tmux.conf .toprc
   )
   local file
   for file in "${files[@]}"; do
@@ -1019,16 +1238,22 @@ link_dotfiles() {
 
   for file in .inputrc .toprc .tmux.conf; do
     if (( DRY_RUN == 1 )); then
-      log dryrun "强制链接：$USER_HOME/$file -> /root/$file"
+      log dryrun "复制：$USER_HOME/$file -> /root/$file"
     elif [[ -e "$USER_HOME/$file" ]]; then
-      ln -sfn "$USER_HOME/$file" "/root/$file"
+      # 为 root 复制独立文件（属主 root:root），严禁软链接到普通用户可写文件，防止提权
+      install -m 644 -o root -g root "$USER_HOME/$file" "/root/$file"
     fi
   done
 }
 
 write_vimrc() {
-  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles not available, skipping write_vimrc"; return 0; }
+  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过写入 vimrc。"; return 0; }
   local target="$USER_HOME/.vimrc"
+  # 防符号链接劫持：root 写入前若 target 是软链，先删除，避免跟随链接覆盖任意文件
+  if (( DRY_RUN == 0 )) && [[ -L "$target" ]]; then
+    log warn "$target 是符号链接，已删除后重建为普通文件。"
+    rm -f "$target"
+  fi
   write_file "$target" <<'EOF'
 set nocompatible
 set encoding=utf-8
@@ -1039,11 +1264,12 @@ set fileencodings=ucs-bom,utf-8,gb18030,big5,euc-jp,euc-kr,latin1
 set fileformats=unix,dos,mac
 
 set list!
-set listchars=tab:>\ ,trail:.,extends:>,precedes:<
+" 精简版 vim（vim-tiny/vim-minimal）下部分选项可能不支持，使用 silent! 容错。
+silent! set listchars=tab:>\ ,trail:.,extends:>,precedes:<
 set backspace=eol,start,indent
 set visualbell t_vb=
-set virtualedit=onemore
-set formatoptions-=t formatoptions+=croql
+silent! set virtualedit=onemore
+silent! set formatoptions-=t formatoptions+=croql
 
 set smarttab
 set expandtab
@@ -1054,11 +1280,8 @@ set ignorecase
 set smartcase
 EOF
   run_cmd chown "$TARGET_USER:$TARGET_USER" "$target"
-  if (( DRY_RUN == 1 )); then
-    log dryrun "强制链接：$target -> /root/.vimrc"
-  else
-    run_cmd ln -sfn "$target" /root/.vimrc
-  fi
+  # 为 root 复制独立文件（属主 root:root），严禁软链接到普通用户可写文件，防止提权
+  run_cmd install -m 644 -o root -g root "$target" /root/.vimrc
 }
 
 # =========================
@@ -1081,13 +1304,8 @@ is_zram_pkg_installed() {
     systemd-zram-generator)
       dpkg-query -W -f='${Status}' systemd-zram-generator 2>/dev/null | grep -q 'install ok installed'
       ;;
-    zram-generator)
-      rpm -q zram-generator >/dev/null 2>&1 \
-        || [[ -f /usr/lib/systemd/system-generators/zram-generator ]] \
-        || [[ -f /lib/systemd/system-generators/zram-generator ]]
-      ;;
-    "")
-      # RHEL fallback: ZRAM_PKG not set, check rpm and generator files
+    zram-generator|"")
+      # RHEL：ZRAM_PKG 为空时同样按 zram-generator 检测（rpm 与 generator 文件双重兜底）
       rpm -q zram-generator >/dev/null 2>&1 \
         || [[ -f /usr/lib/systemd/system-generators/zram-generator ]] \
         || [[ -f /lib/systemd/system-generators/zram-generator ]]
@@ -1114,24 +1332,18 @@ configure_zram() {
     return 0
   fi
 
+  # zram-tools 用 /etc/default/zramswap；zram-generator 系列统一用 $ZRAM_CONF_FILE
   if [[ "$ZRAM_CONF_FILE" == "/etc/default/zramswap" ]]; then
     write_file "$ZRAM_CONF_FILE" <<'EOF'
 PERCENT=50
 EOF
-    if ! has_systemctl; then
-      log warn "未找到 systemctl 或 systemd 未运行，跳过 zram 服务操作。"
-      return 0
-    fi
-    run_cmd systemctl daemon-reload
-    run_cmd systemctl restart "$ZRAM_SERVICE" 2>/dev/null || log warn "zram 服务启动失败；可能未安装 $ZRAM_PKG 或系统不支持。"
-    return 0
-  fi
-
-  write_file "/etc/systemd/zram-generator.conf" <<'EOF'
+  else
+    write_file "$ZRAM_CONF_FILE" <<'EOF'
 [zram0]
 zram-size = min(ram / 2, 1024)
 swap-priority = 32767
 EOF
+  fi
 
   if ! has_systemctl; then
     log warn "未找到 systemctl 或 systemd 未运行，跳过 zram 服务操作。"
@@ -1166,7 +1378,44 @@ configure_swapfile() {
 
   local swap_file="/swap"
   if [[ ! -f "$swap_file" ]]; then
-    run_cmd fallocate -l "${SWAP_SIZE_MB}M" "$swap_file" || run_cmd dd if=/dev/zero of="$swap_file" bs=1M count="$SWAP_SIZE_MB"
+    # 磁盘空间预检：fallocate/dd 写满根分区会留下无效残留，且下次运行会因
+    # 不是有效 swap 文件被永久跳过。预留 256MB 给系统本身。
+    if (( DRY_RUN == 0 )); then
+      local avail_mb
+      avail_mb="$(df -Pm / 2>/dev/null | awk 'NR==2 {print $4}')"
+      if [[ ! "$avail_mb" =~ ^[0-9]+$ ]]; then
+        log warn "无法检测根分区可用空间，跳过创建 swapfile。"
+        return 0
+      fi
+      if (( avail_mb < SWAP_SIZE_MB + 256 )); then
+        log warn "根分区可用空间不足（可用 ${avail_mb}MB，需要 $(( SWAP_SIZE_MB + 256 ))MB 含预留），跳过创建 swapfile。"
+        return 0
+      fi
+    fi
+
+    # 检测 /swap 所在根文件系统类型
+    local fs_type=""
+    fs_type="$(stat -f -c '%T' / 2>/dev/null || true)"
+
+    local create_ok=1
+    if [[ "$fs_type" == "btrfs" ]]; then
+      # Btrfs：须先创建空文件并禁用 CoW，否则 swapon 报 Invalid argument
+      log info "检测到 Btrfs 文件系统，使用 chattr +C 禁用 CoW 后创建 swap 文件。"
+      run_cmd touch "$swap_file"
+      run_cmd chattr +C "$swap_file" || true
+      run_cmd dd if=/dev/zero of="$swap_file" bs=1M count="$SWAP_SIZE_MB" || create_ok=0
+    else
+      run_cmd fallocate -l "${SWAP_SIZE_MB}M" "$swap_file" \
+        || run_cmd dd if=/dev/zero of="$swap_file" bs=1M count="$SWAP_SIZE_MB" \
+        || create_ok=0
+    fi
+    if (( create_ok == 0 )); then
+      if (( DRY_RUN == 0 )); then
+        rm -f "$swap_file"
+      fi
+      log warn "创建 swap 文件失败（磁盘空间不足？），已清理残留：$swap_file。"
+      return 0
+    fi
     run_cmd chmod 600 "$swap_file"
     run_cmd mkswap "$swap_file"
   elif ! command -v file >/dev/null 2>&1; then
@@ -1183,7 +1432,11 @@ configure_swapfile() {
 }
 
 fix_home_permissions() {
-  run_cmd find "$USER_HOME" -xdev -not -path '*/.git/*' -exec chown "$TARGET_USER:$TARGET_USER" {} +
+  # -h: 不解引用符号链接，防止用户预置 symlink 劫持 root 的 chown（如 ln -s /etc/shadow）
+  # 只处理常规文件、目录与符号链接本身，跳过 fifo、socket、设备等异常对象
+  run_cmd find "$USER_HOME" -xdev -not -path '*/.git/*' \
+    \( -type f -o -type d -o -type l \) \
+    -exec chown -h "$TARGET_USER:$TARGET_USER" {} +
 }
 
 # =========================
@@ -1194,8 +1447,11 @@ do_install() {
   collect_inputs install
   verify_inputs
   detect_os
-  detect_kernel_features
   detect_container && IN_CONTAINER=1 || IN_CONTAINER=0
+  detect_kernel_features
+  disable_selinux
+  cleanup_firewalld
+  cleanup_ufw
 
   install_common_packages
   configure_timezone
@@ -1219,32 +1475,78 @@ do_install() {
   log info "初始化完成。请新开 SSH 会话验证登录后，再关闭当前连接。"
 }
 
+print_check_summary() {
+  log info "当前系统：$OS_ID $OS_VERSION_ID（包管理器：$PKG_MANAGER）"
+  if (( IN_CONTAINER == 1 )); then
+    log info "运行环境：LXC/OpenVZ 容器"
+  else
+    log info "运行环境：非容器（虚拟机/物理机）"
+  fi
+  log info "目标用户：$TARGET_USER，SSH 端口：$SSH_PORT，SSH 服务：$SSH_SERVICE，sudo 组：$SUDO_GROUP"
+  log info "zram 支持：$HAS_ZRAM_SUPPORT，swap 支持：$HAS_SWAP_SUPPORT"
+  if [[ "$OS_FAMILY" == "rhel" ]]; then
+    local selinux_status="未安装/未知"
+    if command -v getenforce >/dev/null 2>&1; then
+      selinux_status="$(getenforce 2>/dev/null || echo "未知")"
+    fi
+    log info "SELinux 状态：$selinux_status"
+    if has_firewalld; then
+      log info "防火墙：检测到 firewalld 已安装（安装流程中将被清空并卸载）。"
+    else
+      log info "防火墙：未检测到 firewalld。"
+    fi
+  elif [[ "$OS_FAMILY" == "debian" ]]; then
+    if has_ufw; then
+      log info "防火墙：检测到 ufw 已安装（安装流程中将被清空并卸载）。"
+    else
+      log info "防火墙：未检测到 ufw。"
+    fi
+  fi
+
+  collect_install_packages
+  local pkg
+  for pkg in "${INSTALL_PACKAGES[@]}"; do
+    log info "预装软件包：$pkg"
+  done
+  if (( INSTALL_ZRAM == 1 )); then
+    log info "可选安装：$ZRAM_PKG"
+  fi
+  if (( IN_CONTAINER == 1 )); then
+    log info "容器环境，跳过 zram 安装。"
+  fi
+}
+
 do_check() {
-  require_root
+  # check 为只读诊断，允许普通用户运行（无需 root）；权限不足的项会降级为提示。
   collect_inputs check
   verify_inputs
   detect_os
-  detect_kernel_features
   detect_container && IN_CONTAINER=1 || IN_CONTAINER=0
+  detect_kernel_features
+  print_check_summary
 
-  if command -v sshd >/dev/null 2>&1 && [[ -f /etc/ssh/sshd_config ]]; then
-    if sshd -t 2>/dev/null; then
-      log info "sshd 配置校验通过。"
-    else
-      log warn "sshd 配置校验失败（sshd -t）。"
-    fi
-  fi
-  if command -v visudo >/dev/null 2>&1; then
-    local sudofile="/etc/sudoers.d/90-${TARGET_USER}"
-    if [[ -f "$sudofile" ]]; then
-      if visudo -cf "$sudofile" 2>/dev/null; then
-        log info "sudoers 配置校验通过：$sudofile。"
+  if (( EUID == 0 )); then
+    if command -v sshd >/dev/null 2>&1 && [[ -f /etc/ssh/sshd_config ]]; then
+      if sshd -t 2>/dev/null; then
+        log info "sshd 配置校验通过。"
       else
-        log warn "sudoers 配置校验失败：$sudofile。"
+        log warn "sshd 配置校验失败（sshd -t）。"
       fi
-    else
-      log warn "sudoers 文件不存在，跳过校验：$sudofile。"
     fi
+    if command -v visudo >/dev/null 2>&1; then
+      local sudofile="/etc/sudoers.d/90-${TARGET_USER}"
+      if [[ -f "$sudofile" ]]; then
+        if visudo -cf "$sudofile" 2>/dev/null; then
+          log info "sudoers 配置校验通过：$sudofile。"
+        else
+          log warn "sudoers 配置校验失败：$sudofile。"
+        fi
+      else
+        log warn "sudoers 文件不存在，跳过校验：$sudofile。"
+      fi
+    fi
+  else
+    log info "以普通用户运行，跳过 sshd/sudoers 深度校验（需 root）。"
   fi
 
   log info "检查通过。"
@@ -1266,7 +1568,8 @@ usage() {
   SSH_PUBKEYS 必填：若未通过环境变量指定，交互时须至少粘贴一个公钥，
   无 tty 时直接报错退出。
 交互模式（check）：
-  仅询问目标用户名，端口/swap 取默认值，公钥不询问。
+  不询问任何交互项；未指定 TARGET_USER 时使用默认值 user，
+  端口/swap 取默认值，公钥不涉及。
 
 可选环境变量：
   TARGET_USER, SSH_PUBKEYS, SSH_PORT, SWAP_SIZE_MB
@@ -1304,10 +1607,18 @@ parse_args() {
 
 main() {
   init_colors
-  # flock 防重入（若系统支持 flock）；缺失时静默跳过，不影响功能
-  if command -v flock >/dev/null 2>&1; then
-    exec 9>/tmp/init.sh.lock
-    flock -n 9 || die "已有 init.sh 正在运行。"
+  # flock 防重入：仅在 root 且系统支持 flock 时启用。
+  # 锁文件放在 root-only 目录，避免 /tmp 下符号链接劫持（symlink 诱导 root 截断系统文件）。
+  if (( EUID == 0 )) && command -v flock >/dev/null 2>&1; then
+    local lockdir=""
+    if [[ -d /run ]]; then
+      lockdir="/run"
+    elif [[ -d /var/lock ]]; then
+      lockdir="/var/lock"
+    fi
+    if [[ -n "$lockdir" ]] && exec 9>"$lockdir/init.sh.lock" 2>/dev/null; then
+      flock -n 9 || die "已有 init.sh 正在运行。"
+    fi
   fi
   # shellcheck disable=SC2154
   trap 'log error "执行失败：行=${LINENO:-?} 命令=${BASH_COMMAND:-?}"' ERR

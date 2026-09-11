@@ -15,15 +15,17 @@ set -eu
 
 # --- Helper Functions ---
 trim() {
-    # Trim leading and trailing whitespace via printf -v (safe, bash/zsh compatible)
-    local val="$1"
+    # Trim leading/trailing whitespace of the variable named by $1 (bash/zsh compatible)
+    local val
+    eval "val=\${$1}"
     val="${val#"${val%%[![:space:]]*}"}"
     val="${val%"${val##*[![:space:]]}"}"
     printf -v "$1" '%s' "$val"
 }
 
 is_valid_temp() {
-    [[ "${1:-}" =~ ^[0-9]+$ ]] && [ "${1:-0}" -ge 0 ] 2>/dev/null
+    # Digits-only regex already guarantees a non-negative integer
+    [[ "${1:-}" =~ ^[0-9]+$ ]]
 }
 
 # --- Configuration ---
@@ -32,13 +34,17 @@ CYAN="\033[36m"
 YELLOW="\033[33m"
 RESET="\033[0m"
 
-# Ensure /usr/sbin is in PATH for smartctl
-export PATH="$PATH:/usr/sbin:/sbin"
-
-# --- Smartctl Resolver ---
+# --- Smartctl Resolver: fixed system paths first (never sudo a PATH-resolved
+#     binary from a user-writable dir), fall back to command -v for Homebrew/etc ---
 SMART_CMD=""
-if command -v smartctl >/dev/null 2>&1; then
-    SMART_CMD=$(command -v smartctl)
+for p in /usr/sbin/smartctl /sbin/smartctl /usr/bin/smartctl /usr/local/sbin/smartctl; do
+    if [ -x "$p" ]; then
+        SMART_CMD="$p"
+        break
+    fi
+done
+if [ -z "$SMART_CMD" ]; then
+    SMART_CMD=$(command -v smartctl 2>/dev/null || true)
 fi
 
 # --- Initialize Output Buffers ---
@@ -63,11 +69,12 @@ found_cpu=0
 for zone in /sys/class/thermal/thermal_zone*; do
     [ -r "$zone/type" ] && [ -r "$zone/temp" ] || continue
 
-    type=$(cat "$zone/type")
-    temp_raw=$(cat "$zone/temp")
+    # Runtime read can still fail (EIO/EAGAIN) even if -r passed; don't let set -e kill us
+    type=$(cat "$zone/type" 2>/dev/null) || continue
+    temp_raw=$(cat "$zone/temp" 2>/dev/null) || continue
 
     if is_valid_temp "$temp_raw"; then
-        temp_c=$((temp_raw / 1000))
+        temp_c=$(( (temp_raw + 500) / 1000 ))
         if [ -n "$type" ]; then
             # shellcheck disable=SC2059
             printf "  %-22s : ${GREEN}%s°C${RESET}\n" "${type}" "${temp_c}"
@@ -85,14 +92,14 @@ done
 for hwmon in /sys/class/hwmon/hwmon*; do
     [ -d "$hwmon" ] || continue
     [ -r "$hwmon/name" ] || continue
-    name=$(cat "$hwmon/name")
+    name=$(cat "$hwmon/name" 2>/dev/null) || continue
 
     # --- Branch: drivetemp (Storage via Sysfs) ---
     if [ "$name" = "drivetemp" ]; then
         if [ -r "$hwmon/device/model" ] && [ -r "$hwmon/temp1_input" ]; then
-            model=$(cat "$hwmon/device/model")
+            model=$(cat "$hwmon/device/model" 2>/dev/null) || continue
             trim model
-            temp_raw=$(cat "$hwmon/temp1_input")
+            temp_raw=$(cat "$hwmon/temp1_input" 2>/dev/null) || continue
             [[ "$temp_raw" =~ ^[0-9]+$ ]] || continue
             temp_c=$((temp_raw / 1000))
 
@@ -108,14 +115,13 @@ for hwmon in /sys/class/hwmon/hwmon*; do
     case "$name" in *cpu*|*soc*|*ddr*|*gpu*|*thermal*) continue ;; esac
     for input in "$hwmon"/temp*_input; do
         [ -r "$input" ] || continue
-        temp_raw=$(cat "$input")
-        if [[ "$temp_raw" =~ ^[0-9]+$ ]] && is_valid_temp "$temp_raw"; then
-            temp_c=$((temp_raw / 1000))
+        temp_raw=$(cat "$input" 2>/dev/null) || continue
+        if is_valid_temp "$temp_raw"; then
+            temp_c=$(( (temp_raw + 500) / 1000 ))
             label_file="${input%_input}_label"
-            if [ -r "$label_file" ]; then
-                label="$name ($(cat "$label_file"))"
-            else
-                label="$name"
+            label="$name"
+            if [ -r "$label_file" ] && label_val=$(cat "$label_file" 2>/dev/null) && [ -n "$label_val" ]; then
+                label="$name ($label_val)"
             fi
             # shellcheck disable=SC2059
             line=$(printf "  %-22s : ${GREEN}%s°C${RESET}" "${label}" "${temp_c}")
@@ -126,17 +132,16 @@ for hwmon in /sys/class/hwmon/hwmon*; do
     # --- Branch: Fans ---
     for input in "$hwmon"/fan*_input; do
         [ -r "$input" ] || continue
-        rpm=$(cat "$input")
+        rpm=$(cat "$input" 2>/dev/null) || continue
         if [ -n "${rpm:-}" ]; then
             label=""
             label_file="${input%_input}_label"
             if [ -r "$label_file" ]; then
-                read -r label < "$label_file"
-            elif [ -r "$hwmon/name" ]; then
-                read -r label < "$hwmon/name"
-            else
-                label="Fan Device"
+                # || true: read returns 1 on empty file, which would trip set -e
+                read -r label < "$label_file" || true
             fi
+            [ -z "$label" ] && label="$name"
+            [ -z "$label" ] && label="Fan Device"
             # shellcheck disable=SC2059
             line=$(printf "  %-22s : ${GREEN}%s RPM${RESET}" "${label}" "${rpm}")
             FAN_OUTPUT="${FAN_OUTPUT}${line}\n"
@@ -160,6 +165,8 @@ fi
 if [ -n "$SMART_CMD" ]; then
     for disk in /dev/sd? /dev/nvme[0-9]*n[0-9]*; do
         [ -e "$disk" ] || continue
+        # Skip NVMe partitions (e.g. nvme0n1p1)
+        case "$disk" in /dev/nvme*p[0-9]*) continue ;; esac
 
         # Single smartctl call for both model and temp
         smart_data=$(sudo -n "$SMART_CMD" -a "$disk" 2>/dev/null) || {
@@ -178,18 +185,20 @@ if [ -n "$SMART_CMD" ]; then
         fi
 
         # Get Temp (SATA: attr 194/190; NVMe: Temperature line)
-        temp=$(echo "$smart_data" | grep -E "^194|^190" | sort -r 2>/dev/null | head -n 1 | awk '{print $10}')
+        # $NF is robust across 9- and 10-column smartctl attribute rows
+        temp=$(echo "$smart_data" | awk '$1=="194"{t194=$NF} $1=="190"{t190=$NF} END{if(t194!="")print t194; else if(t190!="")print t190}')
         if [ -z "$temp" ]; then
-            temp=$(echo "$smart_data" | grep -m1 -iE "^Temperature" | awk '{for(i=1;i<=NF;i++) if($i~/^[0-9]+$/) {print $i; exit}}')
+            temp=$(echo "$smart_data" | awk 'tolower($1)~/^temperature/{for(i=1;i<=NF;i++) if($i~/^[0-9]+$/){print $i; exit}}')
         fi
         if [ -z "$temp" ]; then
-            temp=$(echo "$smart_data" | grep -iE "Current Drive Temperature" | grep -oE '[0-9]+' | head -n 1)
+            temp=$(echo "$smart_data" | awk '/Current Drive Temperature/{for(i=1;i<=NF;i++) if($i~/^[0-9]+$/){print $i; exit}}')
         fi
 
         if [ -n "$temp" ] && [ "$temp" -ge 0 ] 2>/dev/null; then
             # shellcheck disable=SC2059
             line=$(printf "  %-22s : ${YELLOW}%s°C${RESET} (Smartctl)" "${model_raw}" "${temp}")
             DRIVE_OUTPUT="${DRIVE_OUTPUT}${line}\n"
+            SEEN_DRIVES["${model_raw}"]=1
         fi
     done
 fi

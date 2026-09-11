@@ -8,18 +8,9 @@ if [ -n "$BASH_VERSION" ]; then
         . "$HOME"/.bashrc
     fi
 fi
-[[ -f ~/.bash_color ]] && . ~/.bash_color
 
 # pinentry for ssh
 [[ -n "$SSH_CONNECTION" ]] && export PINENTRY_USER_DATA="USE_CURSES=1"
-
-# history
-export HISTTIMEFORMAT="%Y-%m-%d %T "
-export HISTCONTROL="$HISTCONTROL ignoreboth:erasedups"
-export HISTSIZE=100000
-export HISTFILESIZE=100000
-#[[ "${BASH_VERSINFO:-0}" -ge 4 ]] && shopt -s histappend
-hash shopt 2>/dev/null && shopt -s histappend
 
 # gem
 [[ -d ~/.gem ]] && \
