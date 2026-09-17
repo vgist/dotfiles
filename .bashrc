@@ -33,10 +33,10 @@ fi
 # bash prompt color
 # https://misc.flogisoft.com/bash/tip_colors_and_formatting
 export GIT_PS1_SHOWDIRTYSTATE=1
-color1="\[\033[37m\]"
-color2="\[\033[36m\]"
-color3="\[\033[32m\]"
-reset="\[\033[0m\]"
+color1="\[$(tput setaf 7)\]"
+color2="\[$(tput setaf 6)\]"
+color3="\[$(tput setaf 2)\]"
+reset="\[$(tput sgr0)\]"
 
 if command -v git >/dev/null 2>&1; then
     for _git_prompt_path in \

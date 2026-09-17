@@ -46,6 +46,7 @@ PKG_SSH=""
 HAS_ZRAM_SUPPORT=0
 HAS_SWAP_SUPPORT=0
 IN_CONTAINER=0
+CONTAINER_KIND=""    # 容器类型（lxc/openvz/docker/podman），由 detect_container 设置
 
 ZRAM_PKG=""
 ZRAM_CONF_FILE=""
@@ -159,6 +160,17 @@ is_interactive() {
   [[ -t 0 ]]
 }
 
+# 校验登录名是否可用于脚本内部操作（sed/awk/路径）：
+# 允许字母、数字、下划线、点、连字符（兼容系统既有 UID 1000 用户名如 john.doe），
+# 不允许以点/连字符开头，不允许连续两点，长度不超过 32。
+is_safe_login_name() {
+  local name="$1"
+  [[ -n "$name" && ${#name} -le 32 ]] || return 1
+  [[ "$name" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]] || return 1
+  [[ "$name" == *".."* ]] && return 1
+  return 0
+}
+
 find_uid_1000_user() {
   local user=""
   if command -v getent >/dev/null 2>&1; then
@@ -177,7 +189,7 @@ get_user_shell() {
     shell="$(getent passwd "$user" 2>/dev/null | cut -d: -f7 || true)"
   fi
   if [[ -z "$shell" && -r /etc/passwd ]]; then
-    shell="$(grep "^${user}:" /etc/passwd 2>/dev/null | cut -d: -f7 || true)"
+    shell="$(awk -F: -v u="$user" '$1 == u {print $7; exit}' /etc/passwd 2>/dev/null || true)"
   fi
   printf '%s' "$shell"
 }
@@ -206,7 +218,7 @@ prompt_port() {
     printf '请输入 SSH 端口 [%s]: ' "$DEFAULT_SSH_PORT"
     IFS= read -r input || true
     [[ -z "$input" ]] && input="$DEFAULT_SSH_PORT"
-    if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= 65535 )); then
+    if [[ "$input" =~ ^[0-9]+$ ]] && (( 10#$input >= 1 && 10#$input <= 65535 )); then
       SSH_PORT="$input"
       break
     fi
@@ -253,7 +265,7 @@ prompt_pubkeys() {
     if (( got_input == 0 )); then
       die "未获取到 SSH 公钥（输入流已结束）。请通过环境变量 SSH_PUBKEYS 提供。"
     fi
-    printf '未输入任何公钥，请至少粘贴一个 SSH 公钥（空行结束输入，取消可按 Ctrl+C）：\n' >&2
+    printf '未输入任何公钥，请至少粘贴一个 SSH 公钥（空行结束输入，取消可按 Ctrl+C）：\n'
   done
   SSH_PUBKEYS="${result%$'\n'}"
 }
@@ -268,6 +280,9 @@ collect_inputs() {
     local u1000_name
     u1000_name="$(find_uid_1000_user)"
     if [[ -n "$u1000_name" ]]; then
+      if ! is_safe_login_name "$u1000_name"; then
+        die "检测到 UID 1000 用户名含脚本不支持的字符（$u1000_name）；请通过环境变量 TARGET_USER 显式指定目标用户。"
+      fi
       TARGET_USER="$u1000_name"
       local u1000_shell
       u1000_shell="$(get_user_shell "$TARGET_USER")"
@@ -296,7 +311,7 @@ collect_inputs() {
     if [[ -z "$SSH_PORT" ]]; then
       if (( IN_CONTAINER == 1 )); then
         SSH_PORT=""
-        log info "检测到 LXC/OpenVZ 容器环境，不显式配置 SSH 端口（保持系统默认 22）。"
+        log info "检测到容器环境，不显式配置 SSH 端口（保持系统默认 22）。"
       elif is_interactive; then
         prompt_port
       else
@@ -308,7 +323,7 @@ collect_inputs() {
     if [[ -z "$SWAP_SIZE_MB" ]]; then
       if (( IN_CONTAINER == 1 )); then
         SWAP_SIZE_MB=0
-        log info "检测到 LXC/OpenVZ 容器环境，跳过 swapfile 配置（SWAP_SIZE_MB 设为 0）。"
+        log info "检测到容器环境，跳过 swapfile 配置（SWAP_SIZE_MB 设为 0）。"
       elif is_interactive; then
         prompt_swap_size
       else
@@ -354,12 +369,16 @@ require_cmd() {
 }
 
 verify_inputs() {
-  [[ "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "TARGET_USER 不合法：$TARGET_USER"
+  if ! is_safe_login_name "$TARGET_USER"; then
+    die "TARGET_USER 不合法：$TARGET_USER（仅允许字母、数字、下划线、点、连字符，最长 32 位，不能以点/连字符开头）。"
+  fi
   if [[ -n "$SSH_PORT" ]]; then
     [[ "$SSH_PORT" =~ ^[0-9]+$ ]] || die "SSH_PORT 必须是数字。"
+    SSH_PORT=$((10#$SSH_PORT))
     (( SSH_PORT >= 1 && SSH_PORT <= 65535 )) || die "SSH_PORT 超出范围：$SSH_PORT"
   fi
   [[ "$SWAP_SIZE_MB" =~ ^[0-9]+$ ]] || die "SWAP_SIZE_MB 必须是非负整数。"
+  SWAP_SIZE_MB=$((10#$SWAP_SIZE_MB))
   [[ "$AUTO_TZ" == "0" || "$AUTO_TZ" == "1" ]] || die "AUTO_TZ 只能是 0 或 1。"
 
   # 提前校验公钥格式：避免 install 跑到 configure_sshd 才因坏公钥中断，
@@ -452,7 +471,7 @@ detect_kernel_features() {
   if (( IN_CONTAINER == 1 )); then
     HAS_ZRAM_SUPPORT=0
     HAS_SWAP_SUPPORT=0
-    log info "容器环境（LXC/OpenVZ），跳过 zram/swap 检测。"
+    log info "容器环境，跳过 zram/swap 检测。"
     return 0
   fi
   if grep -qw '^zram' /proc/modules 2>/dev/null || [[ -d /sys/module/zram ]] || modinfo zram >/dev/null 2>&1; then
@@ -468,11 +487,18 @@ detect_kernel_features() {
   log info "内核能力：zram=${HAS_ZRAM_SUPPORT}，swap=${HAS_SWAP_SUPPORT}。"
 }
 
+# 识别容器环境（LXC/OpenVZ、Docker、Podman）。命中返回 0 并设置 CONTAINER_KIND；
+# 这些环境下将跳过 zram/swap 等宿主级配置。
 detect_container() {
-  # 1. 检查环境变量 container
-  if [[ "${container:-}" == "lxc" || "${container:-}" == "openvz" ]]; then
-    return 0
-  fi
+  CONTAINER_KIND=""
+
+  # 1. 检查环境变量 container（LXC/OpenVZ 原生注入；Podman 会注入 container=podman）
+  case "${container:-}" in
+    lxc|openvz|docker|podman)
+      CONTAINER_KIND="${container}"
+      return 0
+      ;;
+  esac
 
   # 2. systemd-detect-virt 是支持 systemd 的系统中最可靠的容器/虚拟化检测方式
   if command -v systemd-detect-virt >/dev/null 2>&1; then
@@ -480,38 +506,72 @@ detect_container() {
     # --container: 检测容器环境（lxc, openvz, docker, podman, rkt 等）
     if virt="$(systemd-detect-virt --container 2>/dev/null)"; then
       case "$virt" in
-        lxc|openvz) return 0 ;;
-        *) return 1 ;;  # docker, podman, rkt 等明确容器类型立即返回失败
+        lxc|openvz|docker|podman)
+          CONTAINER_KIND="$virt"
+          return 0
+          ;;
+        *) return 1 ;;  # rkt 等其他容器类型不视为目标容器
       esac
     fi
-    # 未识别容器：继续尝试 LXC/OpenVZ 后备检测。
+    # 未识别容器：继续尝试后备检测。
   fi
 
   # 3. 检查 /run/systemd/container 文件
   if [[ -r /run/systemd/container ]]; then
     local run_container
     run_container="$(cat /run/systemd/container 2>/dev/null || true)"
-    if [[ "$run_container" =~ ^(lxc|openvz)$ ]]; then
+    case "$run_container" in
+      lxc|openvz|docker|podman)
+        CONTAINER_KIND="$run_container"
+        return 0
+        ;;
+    esac
+  fi
+
+  # 4. Docker/Podman 标记文件
+  if [[ -f /.dockerenv ]]; then
+    CONTAINER_KIND="docker"
+    return 0
+  fi
+  if [[ -f /run/.containerenv ]]; then
+    CONTAINER_KIND="podman"
+    return 0
+  fi
+
+  # 5. OpenVZ 容器有 /proc/vz 但没有 /proc/bc；宿主两者通常都存在。
+  if [[ -d /proc/vz && ! -d /proc/bc ]]; then
+    CONTAINER_KIND="openvz"
+    return 0
+  fi
+
+  # 6. cgroup 标识（LXC/Proxmox、Docker、Podman 的 cgroup 路径会含对应标识）
+  local cg_file
+  for cg_file in /proc/1/cgroup /proc/self/cgroup; do
+    [[ -r "$cg_file" ]] || continue
+    if grep -Eq '/lxc/|lxc\.payload|lxc\.monitor' "$cg_file" 2>/dev/null; then
+      CONTAINER_KIND="lxc"
       return 0
     fi
-  fi
+    if grep -Eq 'docker[/-]' "$cg_file" 2>/dev/null; then
+      CONTAINER_KIND="docker"
+      return 0
+    fi
+    if grep -Eq 'libpod' "$cg_file" 2>/dev/null; then
+      CONTAINER_KIND="podman"
+      return 0
+    fi
+  done
 
-  # 4. OpenVZ 容器有 /proc/vz 但没有 /proc/bc；宿主两者通常都存在。
-  [[ -d /proc/vz && ! -d /proc/bc ]] && return 0
-
-  # 5. 检查 cgroup 标识（LXC/Proxmox CT 环境下 /proc/1/cgroup 或 /proc/self/cgroup 会包含 /lxc/ 或 lxc.payload）
-  if [[ -r /proc/1/cgroup ]] && grep -Eq '/lxc/|lxc\.payload|lxc\.monitor' /proc/1/cgroup 2>/dev/null; then
-    return 0
-  fi
-  if [[ -r /proc/self/cgroup ]] && grep -Eq '/lxc/|lxc\.payload' /proc/self/cgroup 2>/dev/null; then
-    return 0
-  fi
-
-  # 6. LXC 特有标记：检查 /proc/1/environ 中的 container 字段（特权/非特权容器部分环境可用）
+  # 7. 检查 /proc/1/environ 中的 container 字段（部分容器/特权环境可用）
   if [[ -r /proc/1/environ ]]; then
-    if tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -qiE '^container=(lxc|openvz)'; then
-      return 0
-    fi
+    local pid1_container=""
+    pid1_container="$(tr '\0' '\n' < /proc/1/environ 2>/dev/null | sed -nE 's/^container=([a-z0-9_-]+)$/\1/p' | head -n 1 || true)"
+    case "$pid1_container" in
+      lxc|openvz|docker|podman)
+        CONTAINER_KIND="$pid1_container"
+        return 0
+        ;;
+    esac
   fi
 
   return 1
@@ -748,7 +808,7 @@ install_common_packages() {
 
   collect_install_packages
   if (( IN_CONTAINER == 1 )); then
-    log warn "容器环境（LXC/OpenVZ），跳过 $ZRAM_PKG 安装。"
+    log warn "容器环境，跳过 $ZRAM_PKG 安装。"
   elif (( HAS_ZRAM_SUPPORT != 1 )); then
     log warn "内核未检测到 zram 支持，跳过 $ZRAM_PKG。"
   fi
@@ -956,7 +1016,9 @@ configure_timezone() {
   if command -v timedatectl >/dev/null 2>&1; then
     run_cmd timedatectl set-timezone "$timezone" || log warn "设置时区失败：$timezone。"
   elif [[ -f "/usr/share/zoneinfo/$timezone" ]]; then
-    run_cmd cp -f "/usr/share/zoneinfo/$timezone" /etc/localtime
+    # /etc/localtime 可能是符号链接，直接 cp -f 会写穿并覆盖 zoneinfo 源文件；先移除再复制。
+    run_cmd rm -f /etc/localtime
+    run_cmd cp -f "/usr/share/zoneinfo/$timezone" /etc/localtime || log warn "设置 /etc/localtime 失败：$timezone。"
     printf '%s\n' "$timezone" | write_file /etc/timezone
   else
     log warn "未找到 timedatectl 或 zoneinfo 文件，跳过时区设置：$timezone。"
@@ -966,6 +1028,11 @@ configure_timezone() {
 # =========================
 # 用户与 SSH
 # =========================
+# 将字符串转义为可用于 sed -E 正则的安全形式（用户名含 . 等元字符时必需）。
+sed_escape_ere() {
+  printf '%s' "$1" | sed 's/[][\.*^$()+?{}|]/\\&/g'
+}
+
 unlock_user_for_ssh_keys() {
   local user="$1"
   local shadow_file="/etc/shadow"
@@ -976,7 +1043,9 @@ unlock_user_for_ssh_keys() {
   local pwd_field
   pwd_field="$(awk -F: -v u="$user" '$1 == u {print $2}' "$shadow_file" 2>/dev/null || true)"
 
-  # 如果密码字段为空、为 '!' 或以 '!*' 开头等锁定且无有效密码状态
+  # 判定"无有效密码的锁定状态"（空、!、!*、!!），这类状态可安全改为 *：
+  # 禁用密码认证的同时解除锁定，允许 SSH Key 登录。
+  # 注意：形如 "!$6$..." 的"锁定但保留密码哈希"状态不在此处理，避免误删用户既有密码。
   if [[ -z "$pwd_field" || "$pwd_field" == "!" || "$pwd_field" == "!*" || "$pwd_field" == "!!" ]]; then
     log info "用户 $user 处于无密码锁定状态（shadow: '${pwd_field}'），设置密码为 '*' 以允许 SSH Key 登录。"
     if command -v usermod >/dev/null 2>&1; then
@@ -985,10 +1054,20 @@ unlock_user_for_ssh_keys() {
       if (( DRY_RUN == 1 )); then
         log dryrun "修改 $shadow_file 将 $user 密码字段设为 '*'"
       else
-        sed -i -E "s|^(${user}:)[^:]*(:.*)|\1*\2|" "$shadow_file"
+        local esc_user
+        esc_user="$(sed_escape_ere "$user")"
+        sed -i -E "s|^(${esc_user}:)[^:]*(:.*)|\1*\2|" "$shadow_file"
       fi
     fi
   fi
+}
+
+group_exists() {
+  local g="$1"
+  if command -v getent >/dev/null 2>&1 && getent group "$g" >/dev/null 2>&1; then
+    return 0
+  fi
+  awk -F: -v g="$g" '$1 == g { found=1 } END { exit found ? 0 : 1 }' /etc/group 2>/dev/null
 }
 
 ensure_user() {
@@ -1006,7 +1085,9 @@ ensure_user() {
         if (( DRY_RUN == 1 )); then
           log dryrun "修改 /etc/passwd 将 $TARGET_USER 默认 shell 设为 /bin/bash"
         else
-          sed -i -E "s|^(${TARGET_USER}:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:).*|\1/bin/bash|" /etc/passwd
+          local esc_user
+          esc_user="$(sed_escape_ere "$TARGET_USER")"
+          sed -i -E "s|^(${esc_user}:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:).*|\1/bin/bash|" /etc/passwd
         fi
       fi
     else
@@ -1038,11 +1119,11 @@ ensure_user() {
 
   if (( DRY_RUN == 1 )); then
     # dry-run 也先尝试 getent 解析真实 home，失败才回退默认路径
-    USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
+    USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6 || true)"
     [[ -z "$USER_HOME" ]] && USER_HOME="/home/$TARGET_USER"
   else
-    USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
-    [[ -z "$USER_HOME" ]] && USER_HOME="$(grep "^${TARGET_USER}:" /etc/passwd | cut -d: -f6)"
+    USER_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6 || true)"
+    [[ -z "$USER_HOME" ]] && USER_HOME="$(awk -F: -v u="$TARGET_USER" '$1 == u {print $6; exit}' /etc/passwd 2>/dev/null || true)"
     if [[ -z "$USER_HOME" || ! -d "$USER_HOME" ]]; then
       log warn "无法解析用户 home 目录（解析结果：${USER_HOME:-<空>}）。"
       die "请确认 ${TARGET_USER} 的 home 目录是否正常存在。"
@@ -1056,8 +1137,16 @@ ensure_user() {
     die "USER_HOME 必须位于 /home 下：${USER_HOME:-<空>}，拒绝执行递归 chown。"
   fi
 
-  if ! getent group "$TARGET_USER" >/dev/null 2>&1 && ! grep -q "^${TARGET_USER}:" /etc/group 2>/dev/null; then
-    log warn "未找到同名组 ${TARGET_USER}，后续 chown ${TARGET_USER}:${TARGET_USER} 可能失败。"
+  # Alpine 的 shadow useradd 或复用既有用户时可能没有同名组；
+  # 缺少同名组会导致后续 chown user:user / install -g 失败，此处兜底补建。
+  if ! group_exists "$TARGET_USER"; then
+    if command -v groupadd >/dev/null 2>&1; then
+      run_cmd groupadd "$TARGET_USER" || log warn "创建同名组失败：$TARGET_USER，后续 chown 可能失败。"
+    elif command -v addgroup >/dev/null 2>&1; then
+      run_cmd addgroup "$TARGET_USER" || log warn "创建同名组失败：$TARGET_USER，后续 chown 可能失败。"
+    else
+      log warn "未找到 groupadd/addgroup，无法为 $TARGET_USER 创建同名组。"
+    fi
   fi
 
   DOTFILES_DIR="$USER_HOME/.dotfiles"
@@ -1065,7 +1154,7 @@ ensure_user() {
 
 add_user_to_group_if_exists() {
   local group="$1"
-  if getent group "$group" >/dev/null 2>&1 || grep -q "^${group}:" /etc/group 2>/dev/null; then
+  if group_exists "$group"; then
     if command -v usermod >/dev/null 2>&1; then
       run_cmd usermod -aG "$group" "$TARGET_USER"
     else
@@ -1078,7 +1167,7 @@ add_user_to_group_if_exists() {
 
 configure_user_groups() {
   add_user_to_group_if_exists "$SUDO_GROUP"
-  add_user_to_group_if_exists "systemd-journal"
+  group_exists "systemd-journal" && add_user_to_group_if_exists "systemd-journal"
   [[ "$OS_FAMILY" == "debian" ]] && add_user_to_group_if_exists "users"
   return 0
 }
@@ -1126,6 +1215,19 @@ configure_sudoers() {
   fi
   require_cmd visudo
   visudo -cf "$file" || die "sudoers 语法校验失败：$file"
+}
+
+# 校验目标用户已配置至少一个有效 SSH 公钥；不满足时拒绝重启 sshd 以防锁死。
+ensure_authorized_keys_valid() {
+  local auth_file="$USER_HOME/.ssh/authorized_keys"
+  if (( DRY_RUN == 1 )); then
+    log dryrun "校验 $TARGET_USER 的有效 SSH 公钥（authorized_keys）。"
+    return 0
+  fi
+  if [[ ! -f "$auth_file" ]] || [[ ! -s "$auth_file" ]] || \
+      ! grep -qE '^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)[[:space:]]' "$auth_file"; then
+    die "未找到 $TARGET_USER 的有效 SSH 公钥，拒绝重启 sshd 以防锁死。"
+  fi
 }
 
 configure_sshd() {
@@ -1228,15 +1330,7 @@ configure_sshd() {
     fi
 
     # 重启前校验公钥，避免锁死：ssh 服务将禁用密码登录，若无可登录公钥则危险
-    local auth_file="$USER_HOME/.ssh/authorized_keys"
-    if (( DRY_RUN == 1 )); then
-      log dryrun "校验 $TARGET_USER 的有效 SSH 公钥（authorized_keys）。"
-    else
-      if [[ ! -f "$auth_file" ]] || [[ ! -s "$auth_file" ]] || \
-          ! grep -qE '^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)[[:space:]]' "$auth_file"; then
-        die "未找到 $TARGET_USER 的有效 SSH 公钥，拒绝重启 sshd 以防锁死。"
-      fi
-    fi
+    ensure_authorized_keys_valid
 
     if (( DRY_RUN == 1 )); then
       run_cmd systemctl enable "$SSH_SERVICE"
@@ -1250,15 +1344,7 @@ configure_sshd() {
     run_cmd systemctl restart "$SSH_SERVICE"
   elif has_openrc; then
     # 重启前校验公钥，避免锁死：ssh 服务将禁用密码登录，若无可登录公钥则危险
-    local auth_file="$USER_HOME/.ssh/authorized_keys"
-    if (( DRY_RUN == 1 )); then
-      log dryrun "校验 $TARGET_USER 的有效 SSH 公钥（authorized_keys）。"
-    else
-      if [[ ! -f "$auth_file" ]] || [[ ! -s "$auth_file" ]] || \
-          ! grep -qE '^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)[[:space:]]' "$auth_file"; then
-        die "未找到 $TARGET_USER 的有效 SSH 公钥，拒绝重启 sshd 以防锁死。"
-      fi
-    fi
+    ensure_authorized_keys_valid
 
     # 若找不到 host key，生成 host key（Alpine 初始安装 openssh 时常缺少 host key）
     if ! ls /etc/ssh/ssh_host_*_key >/dev/null 2>&1; then
@@ -1354,7 +1440,9 @@ remove_github_hosts_ipv6() {
 # 以目标用户身份浅克隆到 $DOTFILES_DIR；成功则置 DOTFILES_AVAILABLE=1 并修正属主。
 clone_dotfiles_repo() {
   local repo="$1"
-  sudo -u "$TARGET_USER" -H env GIT_TERMINAL_PROMPT=0 git -c http.connectTimeout=10 -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15 clone --depth 1 -- "$repo" "$DOTFILES_DIR" || return 1
+  sudo -u "$TARGET_USER" -H env GIT_TERMINAL_PROMPT=0 git \
+    -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15 \
+    clone --depth 1 -- "$repo" "$DOTFILES_DIR" || return 1
   DOTFILES_AVAILABLE=1
   chown -R "$TARGET_USER:$TARGET_USER" "$DOTFILES_DIR" 2>/dev/null || log warn "无法更改 dotfiles 所有权。"
   log info "dotfiles 已克隆：$(sudo -u "$TARGET_USER" -H git -C "$DOTFILES_DIR" rev-parse --short HEAD 2>/dev/null || true)"
@@ -1400,7 +1488,7 @@ clone_or_update_dotfiles() {
 apply_sysctl_custom() {
   [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过自定义 sysctl 配置。"; return 0; }
   if (( IN_CONTAINER == 1 )); then
-    log info "容器环境（LXC/OpenVZ），跳过自定义 sysctl 配置（不复制 88-custom.conf）。"
+    log info "容器环境，跳过自定义 sysctl 配置（不复制 88-custom.conf）。"
     return 0
   fi
   local src="$DOTFILES_DIR/etc/sysctl.d/88-custom.conf"
@@ -1523,6 +1611,12 @@ EOF
 # zram 与 swap
 # =========================
 has_non_zram_swap() {
+  # /proc/swaps 是通用接口（BusyBox 的 swapon 不支持 --show），优先解析该文件。
+  if [[ -r /proc/swaps ]] && \
+     awk 'NR > 1 && $1 !~ /zram/ { found=1 } END { exit found ? 0 : 1 }' /proc/swaps 2>/dev/null; then
+    return 0
+  fi
+  # util-linux 环境后备：按 TYPE 过滤 zram 设备。
   swapon --show=NAME,TYPE --noheadings 2>/dev/null \
     | awk '$1 !~ /(^|\/)zram[0-9]*$/ && $2 != "zram" { found=1 } END { exit found ? 0 : 1 }'
 }
@@ -1556,7 +1650,7 @@ is_zram_pkg_installed() {
 
 configure_zram() {
   if (( IN_CONTAINER == 1 )); then
-    log warn "容器环境（LXC/OpenVZ），跳过 zram 配置。"
+    log warn "容器环境，跳过 zram 配置。"
     return 0
   fi
   if (( HAS_ZRAM_SUPPORT == 0 )); then
@@ -1615,7 +1709,7 @@ EOF
 
 configure_swapfile() {
   if (( IN_CONTAINER == 1 )); then
-    log info "容器环境（LXC/OpenVZ），跳过 swapfile 配置。"
+    log info "容器环境，跳过 swapfile 配置。"
     return 0
   fi
   if (( HAS_SWAP_SUPPORT == 0 )); then
@@ -1646,7 +1740,7 @@ configure_swapfile() {
     # 不是有效 swap 文件被永久跳过。预留 256MB 给系统本身。
     if (( DRY_RUN == 0 )); then
       local avail_mb
-      avail_mb="$(df -Pm / 2>/dev/null | awk 'NR==2 {print $4}')"
+      avail_mb="$(df -Pm / 2>/dev/null | awk 'NR==2 {print $4}' || true)"
       if [[ ! "$avail_mb" =~ ^[0-9]+$ ]]; then
         log warn "无法检测根分区可用空间，跳过创建 swapfile。"
         return 0
@@ -1712,7 +1806,7 @@ do_install() {
   detect_os
   detect_kernel_features
   if (( IN_CONTAINER == 1 )); then
-    log info "运行环境：LXC/OpenVZ 容器"
+    log info "运行环境：容器（${CONTAINER_KIND:-未知}）"
   else
     log info "运行环境：非容器（虚拟机/物理机）"
   fi
@@ -1747,7 +1841,7 @@ do_install() {
 print_check_summary() {
   log info "当前系统：${OS_ID} ${OS_VERSION_ID}（包管理器：${PKG_MANAGER}）"
   if (( IN_CONTAINER == 1 )); then
-    log info "运行环境：LXC/OpenVZ 容器"
+    log info "运行环境：容器（${CONTAINER_KIND:-未知}）"
   else
     log info "运行环境：非容器（虚拟机/物理机）"
   fi
@@ -1844,16 +1938,21 @@ usage() {
   ./init.sh --help|-h          显示帮助
   ./init.sh --version|-V       显示版本
 
+支持的系统：
+  Debian 11/12/13、Ubuntu 22.04/24.04/25.04、
+  AlmaLinux/Rocky/CentOS 9/10、Alpine Linux 3.x
+
 交互模式（install）：
-  TARGET_USER、SSH_PORT、SWAP_SIZE_MB 未通过环境变量指定时，
-  若标准输入为终端（tty），将逐项询问（直接回车使用默认值：
-  用户名 user、端口 22、swap 512MB），非法输入会重新询问；
-  无 tty 时静默回退默认值。
-  SSH_PUBKEYS 必填：若未通过环境变量指定，交互时须至少粘贴一个公钥，
+  TARGET_USER 未通过环境变量指定时：优先复用系统中已有的 UID 1000 用户；
+  否则在终端下询问（默认 user），无 tty 时回退默认值。
+  SSH_PUBKEYS 必填：未通过环境变量指定时，交互时须至少粘贴一个公钥，
   无 tty 时直接报错退出。
+  SSH_PORT / SWAP_SIZE_MB 未指定时：非容器环境询问（默认 22 / 512MB）；
+  LXC/OpenVZ/Docker/Podman 容器环境不显式配置 SSH 端口（保持系统默认 22）并跳过 swap、zram。
+  安装过程还会：将目标用户默认 shell 修正为 /bin/bash、解除无密码锁定
+  （shadow 密码字段置 *，保障 SSH Key 登录），并禁用 sshd 密码与交互式认证。
 交互模式（check）：
-  不询问任何交互项；未指定 TARGET_USER 时使用默认值 user，
-  端口/swap 取默认值，公钥不涉及。
+  只读诊断，不修改系统；不询问交互项，TARGET_USER 未指定时自动检测或取默认值。
 
 可选环境变量：
   TARGET_USER, SSH_PUBKEYS, SSH_PORT, SWAP_SIZE_MB
@@ -1875,7 +1974,7 @@ parse_args() {
         action="$1"
         ;;
       --help|-h) usage; exit 0 ;;
-      --version|-V) printf 'init.sh v1.1.0\n'; exit 0 ;;
+      --version|-V) printf 'init.sh v1.2.0\n'; exit 0 ;;
       *) usage; die "未知参数：$1。" ;;
     esac
     shift
