@@ -8,6 +8,7 @@ define allowed_custom_ports = {
 table inet filter {
   set allowed_ports {
     type inet_proto . inet_service
+    flags interval
     counter
     elements = $allowed_custom_ports
   }

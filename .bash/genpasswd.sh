@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Compatible: bash 4.2+ / zsh (fallback pipefail)
-[[ -n "${ZSH_VERSION:-}" ]] && setopt PIPE_FAIL
+# Compatible: bash 4.2+ / zsh 5+
+PROG=${0##*/}
 
-# Charsets; ambiguous chars: at most one from i/I/l/L/1, at most one from o/O/0
-ALNUM='abcdefghijkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXY0123456789'
+# Charsets; look-alike groups (1/i/I/l/L and 0/o/O) constrained in gen_pass
+ALNUM='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 SPECIAL='!@#$%^&*'
 ALL="${ALNUM}${SPECIAL}"
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
 
 usage() {
-  local p="${0##*/}"
-  printf '%s\n' "Usage: $p [length] [count]"       >&2
+  printf '%s\n' "Usage: $PROG [length] [count]"       >&2
   printf '%s\n' "  length:  Password length (def:16)" >&2
   printf '%s\n' "  count:   Number of passwords (def:1)" >&2
-  printf '%s\n' "  Rules:   alnum head/tail; ≥1 special in middle; max 1 variant per ambiguous group" >&2
+  printf '%s\n' "  Rules:   alnum head/tail; ≥1 special in middle; ≤1 kind per look-alike group (1/i/I/l/L, 0/o/O)" >&2
   exit "${1:-1}"
 }
 
@@ -42,31 +41,38 @@ rand_str() {
 # ── Generate one password ──
 # Rules:
 #   n ≤ 3:  all alphanumeric
-#   n > 3:  first & last alphanumeric, middle ≥1 special char
-#            ambiguous groups (i/I/l/L/1, o/O/0) at most one variant each
-gen_pass() {
-  local n=$1 pw head body tail
+#   n > 3:  first & last alphanumeric; middle has ≥1 special char;
+#           per look-alike group (1/i/I/l/L and 0/o/O), at most one kind
+#           of char from that group in the whole password
+# at_most_one_kind PASSWORD CHAR... — true if ≤1 kind of CHAR appears
+at_most_one_kind() {
+  local pw=$1 kinds=0 ch
+  shift
+  for ch in "$@"; do
+    [[ $pw == *"$ch"* ]] && ((++kinds))
+  done
+  (( kinds <= 1 ))
+}
 
-  ((n <= 3)) && { rand_str "$ALNUM" "$n"; return; }
+gen_pass() {
+  local n=$1 pw body
+
+  ((n <= 3)) && { rand_str "$ALNUM" "$n"; printf '\n'; return; }
 
   # Retry until constraints met (avg 1–3 attempts for n≥8)
   while :; do
     pw=$(rand_str "$ALL" "$n")
-    (( ${#pw} >= n ))      || die "Short read from urandom"
+    (( ${#pw} == n )) || die "Short read from urandom"
 
-    head=${pw:0:1}
-    tail=${pw: -1}
     body=${pw:1:$((n-2))}
 
-    [[ $head == [$ALNUM]    ]] || continue
-    [[ $tail == [$ALNUM]    ]] || continue
-    [[ $body == *[$SPECIAL]* ]] || continue
+    [[ ${pw:0:1} == ["$ALNUM"]  ]] || continue
+    [[ ${pw: -1} == ["$ALNUM"]  ]] || continue
+    [[ $body == *["$SPECIAL"]*  ]] || continue
 
-    # Ambiguous-char groups: at most one variant per group
-    grp1=$(printf '%s' "$pw" | awk 'BEGIN{pat="[iIlL1]"} {for(i=1;i<=length;i++) if(substr($0,i,1)~pat) c[substr($0,i,1)]=1} END{print length(c)}')
-    (( grp1 <= 1 )) || continue
-    grp2=$(printf '%s' "$pw" | awk 'BEGIN{pat="[oO0]"}   {for(i=1;i<=length;i++) if(substr($0,i,1)~pat) c[substr($0,i,1)]=1} END{print length(c)}')
-    (( grp2 <= 1 )) || continue
+    # Look-alike groups: at most one kind per group present
+    at_most_one_kind "$pw" i I l L 1 || continue
+    at_most_one_kind "$pw" o O 0    || continue
 
     printf '%s\n' "$pw"
     return

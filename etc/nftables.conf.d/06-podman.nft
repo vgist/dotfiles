@@ -3,6 +3,6 @@
 
 table inet filter {
   chain base_filter {
-    iifname "podman*" udp dport 53 counter accept
+    iifname "podman*" meta l4proto { tcp, udp } th dport 53 counter accept
   }
 }

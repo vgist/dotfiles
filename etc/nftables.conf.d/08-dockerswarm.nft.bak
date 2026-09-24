@@ -20,6 +20,6 @@ table inet filter {
 
   chain docker_swarm {
     meta l4proto . th dport @allowed_docker_swarm_ports accept
-    ip protocol esp counter accept
+    meta l4proto esp counter accept
   }
 }
