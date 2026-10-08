@@ -6,7 +6,7 @@ define allowed_icmpv6_types = { destination-unreachable, packet-too-big, time-ex
 table inet filter {
   chain base_filter {
     ip protocol icmp jump icmp_filter
-    ip6 nexthdr icmpv6 jump icmpv6_filter
+    meta l4proto ipv6-icmp jump icmpv6_filter
   }
   chain icmp_filter {
     icmp type echo-request limit rate 10/second counter accept
