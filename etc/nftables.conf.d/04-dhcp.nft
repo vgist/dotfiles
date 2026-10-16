@@ -1,0 +1,9 @@
+#!/usr/sbin/nft -f
+#
+
+table inet filter {
+  chain base_filter {
+    udp sport bootps udp dport bootpc accept
+    udp sport dhcpv6-server udp dport dhcpv6-client accept
+  }
+}

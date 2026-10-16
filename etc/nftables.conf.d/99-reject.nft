@@ -3,6 +3,8 @@
 
 table inet filter {
   chain input {
+    pkttype { broadcast, multicast } drop
+    limit rate 5/minute burst 10 packets log prefix "Dropped traffic: "
     counter reject with icmpx type host-unreachable
   }
 }

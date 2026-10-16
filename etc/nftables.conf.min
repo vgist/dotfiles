@@ -12,10 +12,11 @@ table inet filter {
         iifname "lo" accept
 
         ip protocol icmp accept
-        ip6 nexthdr ipv6-icmp accept
+        meta l4proto ipv6-icmp accept
 
         tcp dport { 22 } counter accept
 
+        pkttype { broadcast, multicast } drop
         counter reject
     }
 }
