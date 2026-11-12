@@ -787,7 +787,7 @@ collect_install_packages() {
     "$PKG_SSH" sudo tmux "$PKG_VIM"
   )
   if [[ "$OS_FAMILY" == "alpine" ]]; then
-    INSTALL_PACKAGES+=(tzdata shadow ncurses)
+    INSTALL_PACKAGES+=(procps-ng iputils tzdata shadow ncurses)
   fi
   INSTALL_ZRAM=0
   if (( IN_CONTAINER == 1 )); then
