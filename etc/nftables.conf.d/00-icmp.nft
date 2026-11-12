@@ -2,7 +2,8 @@
 
 define icmp_types = { echo-reply, destination-unreachable, time-exceeded }
 define ndp_types = { nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert }
-define other_icmpv6_types = { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-reply, mld-listener-query, mld-listener-report, mld-listener-done, mld-listener-reduction, ind-neighbor-solicit, ind-neighbor-advert, mld2-listener-report }
+define mld_types = { mld-listener-query, mld-listener-report, mld-listener-done, mld2-listener-report }
+define other_icmpv6_types = { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-reply, ind-neighbor-solicit, ind-neighbor-advert }
 
 table inet filter {
   chain base_filter {
@@ -16,6 +17,7 @@ table inet filter {
   chain icmpv6_filter {
     icmpv6 type echo-request limit rate 10/second burst 20 packets counter accept
     icmpv6 type $ndp_types ip6 hoplimit 255 counter accept
+    icmpv6 type $mld_types ip6 hoplimit 1 counter accept
     icmpv6 type $other_icmpv6_types counter accept
   }
 }

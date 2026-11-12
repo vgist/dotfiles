@@ -787,7 +787,7 @@ collect_install_packages() {
     "$PKG_SSH" sudo tmux "$PKG_VIM"
   )
   if [[ "$OS_FAMILY" == "alpine" ]]; then
-    INSTALL_PACKAGES+=(tzdata shadow ncurses)
+    INSTALL_PACKAGES+=(procps-ng iputils tzdata shadow ncurses)
   fi
   INSTALL_ZRAM=0
   if (( IN_CONTAINER == 1 )); then
@@ -1469,7 +1469,7 @@ clone_or_update_dotfiles() {
       return 0
     else
       log warn "dotfiles 目录已存在，但更新失败（保留本地副本）：$DOTFILES_DIR。"
-      log warn "后续将跳过 dotfiles 相关配置（sysctl、link、vimrc）。"
+      log warn "后续将跳过 dotfiles 相关配置（sysctl、link、vimrc/virc）。"
       return 0
     fi
   fi
@@ -1569,42 +1569,82 @@ link_dotfiles() {
   done
 }
 
+# 返回目标用户 vim 实际读取的用户级配置文件（相对 $HOME）。
+# Debian 系（vim-tiny/vim）读 ~/.vimrc；RHEL 系（vim-minimal 提供的 vi）读 ~/.virc：
+# RHEL/AlmaLinux 8、9、10 的 vim spec 都先 perl -pi -e "s/vimrc/virc/" os_unix.h 再构建
+# minimal 子包，因此 vi/ex/view/rvi/rview 只读 /etc/virc 与 ~/.virc（rhbz#1045815）。
+# 以 vim/vi --version 输出的 "user vimrc file" 行为准，取不到时按发行版兜底。
+detect_user_vimrc_name() {
+  local bin out
+  for bin in vi vim; do
+    command -v "$bin" >/dev/null 2>&1 || continue
+    out="$("$bin" --version 2>/dev/null \
+      | sed -n 's/^[[:space:]]*user vimrc file:[[:space:]]*"\$HOME\/\([^"]*\)".*/\1/p' \
+      | head -n 1)"
+    if [[ -n "$out" ]]; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+  done
+  case "$OS_FAMILY" in
+    rhel) printf '%s\n' ".virc" ;;
+    *)    printf '%s\n' ".vimrc" ;;
+  esac
+}
+
 write_vimrc() {
-  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过写入 vimrc。"; return 0; }
-  local target="$USER_HOME/.vimrc"
-  # 防符号链接劫持：root 写入前若 target 是软链，先删除，避免跟随链接覆盖任意文件
-  if (( DRY_RUN == 0 )) && [[ -L "$target" ]]; then
-    log warn "$target 是符号链接，已删除后重建为普通文件。"
-    rm -f "$target"
+  [[ "$DOTFILES_AVAILABLE" == 1 ]] || { log warn "dotfiles 不可用，跳过写入 vim 配置。"; return 0; }
+
+  local primary name target
+  primary="$(detect_user_vimrc_name)"
+  # 另一份作为兼容副本写入：RHEL 系后续装 vim-enhanced 后 vim 读 ~/.vimrc，
+  # Debian 系若 vi 指向 vim-minimal 风格的二进制则读 ~/.virc。
+  local names=("$primary")
+  if [[ "$primary" == ".vimrc" ]]; then
+    names+=(".virc")
+  else
+    names+=(".vimrc")
   fi
-  write_file "$target" <<'EOF'
+  log info "vim 用户配置写入：$USER_HOME/$primary（兼容副本：$USER_HOME/${names[1]}）。"
+
+  for name in "${names[@]}"; do
+    target="$USER_HOME/$name"
+    # 防符号链接劫持：root 写入前若 target 是软链，先删除，避免跟随链接覆盖任意文件
+    if (( DRY_RUN == 0 )) && [[ -L "$target" ]]; then
+      log warn "$target 是符号链接，已删除后重建为普通文件。"
+      rm -f "$target"
+    fi
+    # 精简版 vim（vim-tiny/vim-minimal；AlmaLinux 10 的 vim-minimal 为 tiny 特性集）
+    # 缺少 listchars/virtualedit/formatoptions 等选项，用 silent! 容错避免启动报 E518。
+    write_file "$target" <<'EOF'
 set nocompatible
 set encoding=utf-8
 scriptencoding utf-8
-set termencoding=utf-8
 set fileencoding=utf-8
 set fileencodings=ucs-bom,utf-8,gb18030,big5,euc-jp,euc-kr,latin1
 set fileformats=unix,dos,mac
+"set langmenu=zh_CN.UTF-8
+"set helplang=cn
 
-set list!
-" 精简版 vim（vim-tiny/vim-minimal）下部分选项可能不支持，使用 silent! 容错。
-silent! set listchars=tab:>\ ,trail:.,extends:>,precedes:<
-set backspace=eol,start,indent
-set visualbell t_vb=
-silent! set virtualedit=onemore
+set list                            " Display unprintable characters
+silent! set listchars=tab:▸\ ,trail:•,extends:»,precedes:«
+set backspace=eol,start,indent      " Allow backspace
+set visualbell t_vb=                " Disable error bells
+silent! set virtualedit=onemore     " block, insert, all, onemore
 silent! set formatoptions-=t formatoptions+=croql
 
-set smarttab
-set expandtab
+set smarttab                        " Make <tab> and <backspace> smarter
+set expandtab                       " expand tabs to spaces
 set tabstop=4 softtabstop=4 shiftwidth=4
 set autoindent smartindent shiftround
 
-set ignorecase
-set smartcase
+set ignorecase                      " ignore case when searching
+set smartcase                       " no ignorecase if Uppercase char present
 EOF
-  run_cmd chown "$TARGET_USER:$TARGET_USER" "$target"
-  # 为 root 复制独立文件（属主 root:root），严禁软链接到普通用户可写文件，防止提权
-  run_cmd install -m 644 -o root -g root "$target" /root/.vimrc
+    run_cmd chown "$TARGET_USER:$TARGET_USER" "$target"
+    # 为 root 复制独立文件（属主 root:root），严禁软链接到普通用户可写文件，防止提权
+    run_cmd install -m 644 -o root -g root "$target" "/root/$name"
+  done
 }
 
 # =========================

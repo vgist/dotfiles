@@ -62,6 +62,5 @@ PS1='%F{7}%*%f %F{6}%m:%~%f%F{2}${vcs_info_msg_0_}%f %F{6}$%f '
 
 [[ -t 1 ]] && ttyctl -f
 
-[[ -f ~/.bash_aliases ]] && . ~/.bash_aliases
-
-command -v fnm >/dev/null && eval "$(fnm env --use-on-cd)"
+[[ -f "$HOME/.bash_aliases" ]] && source "$HOME/.bash_aliases"
+[[ -f "$HOME/.bashrc.local" ]] && source "$HOME/.bashrc.local"

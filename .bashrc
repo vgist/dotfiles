@@ -58,3 +58,5 @@ PS1="${color1}\t ${color2}\h:\w${color3}"'$(type -t __git_ps1 >/dev/null 2>&1 &&
 #if [[ "$(tput colors)" == 256 ]]; then
 #    hash ccal 2>/dev/null && ccal -u
 #fi
+
+[[ -f "$HOME/.bashrc.local" ]] && source "$HOME/.bashrc.local"
