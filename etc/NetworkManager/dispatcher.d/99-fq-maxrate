@@ -1,0 +1,4 @@
+#!/bin/bash
+if [ "$1" = "eth0" ] && [ "$2" = "up" ]; then
+    /usr/sbin/tc qdisc replace dev eth0 root fq maxrate 950mbit
+fi

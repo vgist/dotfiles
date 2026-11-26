@@ -9,9 +9,18 @@ IPv6PrivacyExtensions=true
 #DNS=119.29.29.29
 #DNS=2400:3200::1
 
+[DHCPv4]
+UseHostname=no
+
 [IPv6AcceptRA]
+# Token: eui64 static prefixstable
+# Token=static:::a
 # Stable private IPv6 address (RFC 7217)
 Token=prefixstable
 
 [Link]
 Promiscuous=true
+
+[FairQueueing]
+Parent=root
+MaximumRate=950M
